@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "categories": [
+    {
+      "key": "1",
+      "name": "機器人特寫",
+      "folder": "機器人特寫",
+      "color": "#87d1ff",
+      "action": "move"
+    },
+    {
+      "key": "2",
+      "name": "賽場動態",
+      "folder": "賽場動態",
+      "color": "#7dff95",
+      "action": "move"
+    },
+    {
+      "key": "3",
+      "name": "隊員照片",
+      "folder": "隊員照片",
+      "color": "#c9a3ff",
+      "action": "move"
+    },
+    {
+      "key": "4",
+      "name": "團隊合照",
+      "folder": "團隊合照",
+      "color": "#ffbc5e",
+      "action": "move"
+    },
+    {
+      "key": "q",
+      "name": "廢片",
+      "folder": "_廢片",
+      "color": "#ff8080",
+      "action": "move",
+      "isTrash": true
+    }
+  ]
+}
