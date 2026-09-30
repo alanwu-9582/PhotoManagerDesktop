@@ -260,6 +260,8 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Photo Manager")
     app.setOrganizationName("PhotoManager")
+    from . import __version__
+    app.setApplicationVersion(__version__)
     app.setStyle("Fusion")
     mode = config.settings.get("theme")
     theme.apply(app, theme.system_is_dark(app) if mode == "system" else mode == "dark")

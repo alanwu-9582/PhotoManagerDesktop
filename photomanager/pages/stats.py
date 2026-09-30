@@ -289,7 +289,7 @@ class Heatmap(Chart):
                        fm.elidedText(str(name), Qt.TextElideMode.ElideRight, self.LEFT - 10))
             for c, v in enumerate(self.m[r]):
                 rect = QRectF(self.LEFT + c * cw + 1, y + 1, max(1.0, cw - 2), max(1.0, ch - 2))
-                col = _mix(lo, hi, math.sqrt(v / self.max)) if v else lo
+                col = _mix(lo, hi, math.sqrt(v / self.max)) if v else QColor(lo)
                 if self._hover >= 0 and self._hover != r * len(self.xs) + c:
                     col.setAlphaF(col.alphaF() * 0.75)
                 p.fillPath(theme.round_rect(QPainterPath(), rect, 3), col)
@@ -420,7 +420,7 @@ def card(title, sub, chart):
     if chart:
         chart.setMinimumHeight(chart.sizeHint().height())
     frame.setLayout(vbox(head, body, None, spacing=12, margins=(16, 14, 16, 14)))
-    frame.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+    frame.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
     return frame
 
 
@@ -527,25 +527,21 @@ class StatsPage(Page):
             heat_fa = Heatmap([f"{x}" for x in xs], ys, m, x_every=max(1, math.ceil(len(xs) / 10)))
         si = [(i["exposureTimeRaw"], i["iso"]) for i in infos if i.get("exposureTimeRaw") and i.get("iso")]
         scatter = Scatter(si) if si else None
-        wide = [card(tr("拍攝時段"), tr("星期 × 小時"), heat_time)]
-        pair = [card(tr("焦段 × 光圈"), tr("mm × f 值"), heat_fa), card(tr("快門 × ISO"), tr("泡泡越大 = 越多張"), scatter)]
+        cards += [card(tr("焦段 × 光圈"), tr("mm × f 值"), heat_fa), card(tr("快門 × ISO"), tr("泡泡越大 = 越多張"), scatter)]
+        wide = card(tr("拍攝時段"), tr("星期 × 小時"), heat_time)
 
-        for i, c in enumerate(cards):
-            self.grid.addWidget(c, i // self._cols, i % self._cols, Qt.AlignmentFlag.AlignTop)
-        row = math.ceil(len(cards) / self._cols)
-        for c in wide:
-            self.grid.addWidget(c, row, 0, 1, self._cols, Qt.AlignmentFlag.AlignTop)
-            row += 1
-        if self._cols >= 2:
-            half = self._cols // 2
-            self.grid.addWidget(pair[0], row, 0, 1, half if self._cols == 2 else 2, Qt.AlignmentFlag.AlignTop)
-            self.grid.addWidget(pair[1], row, 1 if self._cols == 2 else 2, 1, 1 if self._cols == 2 else 1,
-                                Qt.AlignmentFlag.AlignTop)
-            row += 1
-        else:
-            for c in pair:
-                self.grid.addWidget(c, row, 0, Qt.AlignmentFlag.AlignTop)
-                row += 1
+        # 一格一格往下排；一排排不滿時，最後一張往右延伸把空位補滿。
+        # 不加 AlignTop：同一排的卡片會被拉到跟最高的那張一樣高。
+        n = self._cols
+        rows = [cards[i:i + n] for i in range(0, len(cards), n)]
+        for r, items in enumerate(rows):
+            for c, w in enumerate(items):
+                span = n - c if c == len(items) - 1 else 1
+                self.grid.addWidget(w, r, c, 1, span)
+        row = len(rows)
+        self.grid.addWidget(wide, row, 0, 1, n)
         for c in range(3):
-            self.grid.setColumnStretch(c, 1 if c < self._cols else 0)
+            self.grid.setColumnStretch(c, 1 if c < n else 0)
+        for r in range(row + 2):
+            self.grid.setRowStretch(r, 0)
         self.grid.setRowStretch(row + 1, 1)

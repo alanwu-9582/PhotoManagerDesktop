@@ -600,4 +600,7 @@ EN = {
     "兩張一起縮放平移": "Zoom and pan both together",
     "回到原始大小（0）": "Back to fit (0)",
     "無法預覽": "Can't preview",
+    "開啟網頁版": "Open web version",
+    "網頁版": "Web version",
+    "不用安裝，直接在瀏覽器裡用（Chrome / Edge）。": "No install needed — runs right in the browser (Chrome / Edge).",
 }

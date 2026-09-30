@@ -149,14 +149,29 @@ def focus_at(depth: np.ndarray, x: float, y: float) -> float:
 
 
 # ============================================================ 畫模糊
+NEAR_GAIN = 1.3     # 對焦面前面的東西糊得比後面快（真的鏡頭也是這樣）
+
+
 def blur_amount_map(depth, lo, hi, feather, bg_only):
-    """每個像素要糊多少（0..1）。"""
-    if bg_only:
-        dist = np.maximum(depth - hi, 0)
+    """每個像素要糊多少（0..1）—— 模擬鏡頭的模糊圈（circle of confusion）。
+
+    對焦範圍內是清楚的；範圍外的模糊量跟「離對焦面多遠」成正比：
+    稍微在後面一點只糊一點點，越遠越糊，最遠的地方才到最大模糊量。
+    前景離鏡頭近，同樣的深度差糊得更多。feather 決定剛離開對焦範圍時多快開始糊。
+    """
+    far = np.maximum(depth - hi, 0)
+    coc = far / max(1.0 - hi, 0.12)                      # 最遠處 = 1
+    if not bg_only:
+        near = np.maximum(lo - depth, 0)
+        coc = np.maximum(coc, near * NEAR_GAIN / max(lo, 0.12))
+        dist = np.maximum(far, near)
     else:
-        dist = np.maximum(np.maximum(lo - depth, depth - hi), 0)
+        dist = far
+    coc = np.clip(coc, 0, 1)
+    # 對焦範圍的邊緣柔一點：剛出範圍的地方不會突然跳一階
     t = np.clip(dist / max(feather, 0.01), 0, 1)
-    return (t * t * (3 - 2 * t)).astype(np.float32)   # smoothstep，過渡比較自然
+    onset = t * t * (3 - 2 * t)
+    return (coc * onset).astype(np.float32)
 
 
 def _blur_level(img: Image.Image, radius: float) -> Image.Image:
@@ -170,7 +185,7 @@ def _blur_level(img: Image.Image, radius: float) -> Image.Image:
     return img.filter(ImageFilter.GaussianBlur(radius))
 
 
-def render(rgb: np.ndarray, amount_map: np.ndarray, max_radius: float, levels=6, cancel=None,
+def render(rgb: np.ndarray, amount_map: np.ndarray, max_radius: float, levels=8, cancel=None,
            on_progress=None) -> np.ndarray:
     """rgb: HxWx3 uint8；amount_map: HxW 0..1；回傳 uint8。"""
     if max_radius < 0.5 or float(amount_map.max()) < 1e-3:

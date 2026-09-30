@@ -9,7 +9,8 @@
 - 依影像相似度或連拍時間自動分組，方便從相近照片中挑選成品。
 - 以分類設定檔保存不同情境的分類、顏色、動作與快捷鍵，並可一次套用整理結果。
 - 編輯工具可無損接力：裁切旋轉、EXIF 相框、照片色卡與景深模糊的結果能直接傳到下一個工具，避免重複 JPEG 壓縮。
-- 景深模糊可使用 Depth Anything V2 模型分析遠近，並用深度範圍選擇對焦區域；模型需另行下載。
+- 景深模糊可使用 Depth Anything V2 模型分析遠近，並用深度範圍選擇對焦區域；對焦範圍外的模糊量會隨深度差逐漸增加（前景比背景糊得快），接近真實鏡頭的效果。模型需另行下載。
+- 設定 → 外觀與快取 裡有網頁版的連結：https://wayne-1211.github.io/photoManager/
 - 縮圖採虛擬捲動，EXIF 與縮圖會快取至本機，適合瀏覽大量照片。
 
 ## 安裝與執行
@@ -29,12 +30,18 @@ python main.py D:\Photos\2026-09
 
 Windows 可直接執行 `run.bat`。
 
-若要打包成應用程式：
+若要打包成應用程式（需要 PyInstaller 與 [Inno Setup 6](https://jrsoftware.org/isinfo.php)，後者可用 `winget install JRSoftware.InnoSetup` 安裝）：
 
 ```bash
-pip install pyinstaller
-pyinstaller PhotoManager.spec
+packaginguild.bat
 ```
+
+產出：
+
+- `dist\PhotoManager\PhotoManager.exe`：免安裝的資料夾版，整個資料夾複製走就能用。
+- `dist\installer\PhotoManager-Setup-<版本>.exe`：安裝檔。預設只裝給目前使用者（不需要系統管理員），也可以選擇安裝給所有使用者；解除安裝時會詢問是否一併刪除設定與標記。
+
+版本號在 `photomanager/__init__.py` 的 `__version__`。
 
 ## 資料位置
 
@@ -55,6 +62,7 @@ PhotoManagerDesktop/
 ├─ run.bat                  # Windows 啟動腳本
 ├─ requirements.txt         # Python 相依套件
 ├─ PhotoManager.spec        # PyInstaller 打包設定
+├─ packaging/               # build.bat、安裝檔腳本（installer.iss）、繁中安裝精靈文字、圖示
 └─ photomanager/
    ├─ app.py                # 主視窗、頁面路由、快捷鍵與主題
    ├─ config.py             # 使用者設定與資料路徑

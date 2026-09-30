@@ -283,7 +283,7 @@ class DepthBlurPage(ToolPage):
         F.addWidget(self.bg_only)
         self.amount = SliderField(tr("模糊量"), 0, 100, 1, 50, lambda v: f"{v:.0f}")
         self.amount.changed.connect(lambda *_: self.schedule())
-        self.feather = SliderField(tr("過渡"), 1, 50, 1, 15, lambda v: f"{v:.0f}%")
+        self.feather = SliderField(tr("過渡"), 1, 50, 1, 8, lambda v: f"{v:.0f}%")
         self.feather.changed.connect(lambda *_: self.schedule())
         F.addWidget(row(self.amount, self.feather))
 

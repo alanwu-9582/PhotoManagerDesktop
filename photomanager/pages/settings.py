@@ -31,6 +31,8 @@ from ..ui.photogrid import text_on
 from ..ui.widgets import ColorButton, EmptyState, Segmented, button, hbox, icon_button, label, notify, section, vbox
 from .base import Page
 
+WEB_URL = "https://wayne-1211.github.io/photoManager/"
+
 
 class CategoryPanel(QWidget):
     def __init__(self, window):
@@ -393,12 +395,20 @@ class GeneralPanel(QWidget):
         box2.setProperty("group", True)
         box2.setLayout(vbox(label(tr("快取"), "headline"), hbox(self.cache, None, clear), where,
                             spacing=10, margins=(16, 14, 16, 14)))
+        web = button(tr("開啟網頁版"), None, "external", WEB_URL, self.open_web)
+        box3 = QFrame()
+        box3.setProperty("group", True)
+        box3.setLayout(vbox(label(tr("網頁版"), "headline"),
+                            hbox(label(tr("不用安裝，直接在瀏覽器裡用（Chrome / Edge）。"), "secondary"), None, web),
+                            label(WEB_URL, "caption", selectable=True),
+                            spacing=10, margins=(16, 14, 16, 14)))
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(12)
         lay.addWidget(box0)
         lay.addWidget(box1)
         lay.addWidget(box2)
+        lay.addWidget(box3)
         lay.addStretch(1)
 
     def refresh(self):
@@ -416,6 +426,11 @@ class GeneralPanel(QWidget):
             return
         config.settings.set("language", lang)
         self.win.restart()
+
+    def open_web(self):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl(WEB_URL))
 
     def clear_cache(self):
         if not dialogs.confirm(self.win, tr("清除縮圖快取？"), tr("只刪快取，照片本身不會動。下次捲到時會重新產生縮圖。"),
