@@ -31,18 +31,19 @@ def _routes():
     from .pages.rename import RenamePage
     from .pages.settings import SettingsPage
     from .tools.photo_edit.page import PhotoEditPage
-    from .tools.exif_frame.page import ExifFramePage
-    from .tools.palette_card.page import PaletteCardPage
+    from .tools.adjust.page import AdjustPage
+    from .tools.frames import FramesPage
     from .tools.depth_blur.page import DepthBlurPage
     return {
         "photos": {"label": tr("照片檢視"), "icon": "image", "group": tr("照片管理"), "page": PhotosPage},
         "stats": {"label": tr("統計數據"), "icon": "chart", "group": tr("照片管理"), "page": StatsPage},
         "organize": {"label": tr("整理分類"), "icon": "layers", "group": tr("照片管理"), "page": OrganizePage},
         "rename": {"label": tr("批次改名"), "icon": "copy", "group": tr("照片管理"), "page": RenamePage},
+        # 照片編輯：以後的新功能依種類放進既有的頁面（分頁 / ToolGroup），或在這裡加一頁
         "edit": {"label": tr("裁切旋轉"), "icon": "crop", "group": tr("照片編輯"), "page": PhotoEditPage},
-        "frame": {"label": tr("EXIF 相框"), "icon": "frame", "group": tr("照片編輯"), "page": ExifFramePage},
-        "palette": {"label": tr("照片色卡"), "icon": "palette", "group": tr("照片編輯"), "page": PaletteCardPage},
+        "adjust": {"label": tr("調整"), "icon": "adjust", "group": tr("照片編輯"), "page": AdjustPage},
         "blur": {"label": tr("景深模糊"), "icon": "aperture", "group": tr("照片編輯"), "page": DepthBlurPage},
+        "frame": {"label": tr("相框與色卡"), "icon": "frame", "group": tr("照片編輯"), "page": FramesPage},
         "settings": {"label": tr("設定"), "icon": "sliders", "group": tr("其他"), "page": SettingsPage},
     }
 
@@ -183,11 +184,17 @@ class MainWindow(QMainWindow):
             if p is not None and hasattr(p, "save"):
                 p.save()
 
+        def stash():
+            p = self.page()
+            if p is not None and hasattr(p, "stash"):
+                p.stash()
+
         sc("Ctrl+O", open_)
         sc("Ctrl+Shift+O", self.source.pick_files)
         sc("F5", self.source.rescan)
         sc("Ctrl+R", self.source.rescan)
         sc("Ctrl+S", save)
+        sc("Ctrl+Shift+S", stash)
         sc("Ctrl+\\", self.sidebar.toggle_collapsed)
         for i, key in enumerate(self.routes, start=1):
             sc(f"Ctrl+{i}", lambda k=key: self.go(k))

@@ -29,7 +29,7 @@ from ..state import fmt_bytes, state
 from ..ui import dialogs, icons, theme
 from ..ui.photogrid import PhotoGrid, text_on
 from ..ui.viewer import Viewer, display_edge
-from ..ui.widgets import Flag, EmptyState, FlowLayout, button, hbox, label, notify, vbox
+from ..ui.widgets import Stepper, Flag, EmptyState, FlowLayout, button, hbox, label, notify, vbox
 from .base import Page
 
 SIDE_FIELDS = [("dateTimeOriginal", tr("拍攝時間")), ("model", tr("相機型號")), ("lensModel", tr("鏡頭")),
@@ -183,11 +183,8 @@ class OrganizePage(Page):
         apply_box.layout().itemAt(0).layout().setStretch(0, 1)
         apply_box.setFixedHeight(160)
 
-        self.col_slider = QSlider(Qt.Orientation.Horizontal)
-        self.col_slider.setRange(2, 6)
-        self.col_slider.setValue(state.manage_columns)
-        self.col_slider.setFixedWidth(90)
-        self.col_slider.valueChanged.connect(self.set_columns)
+        self.col_slider = Stepper([(n, str(n)) for n in range(2, 7)], state.manage_columns, tip=tr("每排幾張"))
+        self.col_slider.changed.connect(self.set_columns)
         self.hide_done = Flag(tr("只看未分類"))
         self.hide_done.setChecked(state.hide_done)
         self.hide_done.toggled.connect(self.set_hide_done)

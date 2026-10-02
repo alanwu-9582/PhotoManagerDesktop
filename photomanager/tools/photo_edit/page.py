@@ -244,8 +244,7 @@ class PhotoEditPage(ToolPage):
         self.work: QImage | None = None
         self.size_out = label("", "caption")
         self.meta_lay.addWidget(self.size_out)
-        self.save_btn = button(tr("儲存…"), "primary", "download", tr("輸出裁切後的照片（Ctrl+S）"), self.save)
-        self.actions.addWidget(self.save_btn)
+        self.add_output_buttons(tr("輸出裁切後的照片（Ctrl+S）"))
         self._rebuild = QTimer(self)
         self._rebuild.setSingleShot(True)
         self._rebuild.setInterval(16)
@@ -463,14 +462,12 @@ class PhotoEditPage(ToolPage):
             self.transparent.setChecked(False)
 
     # ---------------------------------------------------------------- 輸出
-    def save(self):
+    def output_name(self):
+        return f"{safe_name(self.path)}_crop.{self.fmt.currentData()}"
+
+    def output_job(self):
         if not self.full:
-            notify(tr("還沒有照片"), "warning")
-            return
-        ext = self.fmt.currentData()
-        path = self.ask_save(f"{safe_name(self.path)}_crop.{ext}")
-        if not path:
-            return
+            return None
         src, o, crop = self.full, dict(self.o), dict(self.crop)
         scale = float(self.scale.currentData())
 
@@ -481,4 +478,4 @@ class PhotoEditPage(ToolPage):
             progress(0.7, tr("裁切"))
             return crop_image(full, crop)
 
-        self.export(path, job, int(self.quality.value()), [self.save_btn])
+        return job

@@ -2,6 +2,8 @@
 
 載入照片就自動偵測遠近，右邊出現深度分佈的直方圖：拖兩個把手選「對焦範圍」，
 範圍內保持清楚、範圍外依距離逐漸變糊。也可以直接點照片上想對焦的地方。
+模糊是照鏡頭的方式算的（depth.render）：用光圈值決定最大的模糊圈，光圈形狀可以是圓形或多邊形，
+亮點會散成一顆顆散景。
 預覽在長邊 1100px 的縮圖上算、而且在背景執行緒裡算；儲存時才用原尺寸重算一次。
 """
 from __future__ import annotations
@@ -13,17 +15,25 @@ import threading
 import numpy as np
 from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import QComboBox, QWidget
+from PySide6.QtWidgets import QComboBox, QSizePolicy, QWidget
 
 from ...engine import image as imgmod
 from ...ui import dialogs, theme
-from ...ui.widgets import (Flag, Segmented, SliderField, button, field, hbox, label, notify, row, section)
+from ...ui.widgets import (Flag, Segmented, SliderField, Stepper, button, field, hbox, label, notify, row, section,
+                           wrap)
 from ..common import Stage, ToolPage, safe_name
 from . import depth as D
 from . import model
 
 PREVIEW_EDGE = 1100
 BINS = 64
+F_STOPS = [1.2, 1.4, 1.8, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0]
+BLADES = [("0", tr("圓形")), ("9", tr("9 葉")), ("6", tr("6 葉"))]
+
+
+def max_radius(f_number, edge):
+    """光圈越大（f 值越小）模糊圈越大：f/1.2 約是長邊的 5%，跟模糊圈和光圈直徑成正比一樣。"""
+    return edge * 0.05 * 1.2 / f_number
 
 
 def qimage_to_rgb(img: QImage) -> np.ndarray:
@@ -184,8 +194,9 @@ class BlurStage(Stage):
             return
         r = self.image_rect()
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        p.drawPixmap(r, self.pix, QRectF(self.pix.rect()))
-        if self.marker is not None:
+        pix = self.shown_pix(self.pix)
+        p.drawPixmap(r, pix, QRectF(pix.rect()))
+        if self.marker is not None and not self.comparing:
             c = QPointF(r.x() + self.marker.x() * r.width(), r.y() + self.marker.y() * r.height())
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.setPen(QPen(QColor(0, 0, 0, 140), 3.5))
@@ -233,6 +244,8 @@ class _Relay(QObject):
 # ============================================================ 頁面
 class DepthBlurPage(ToolPage):
     title = tr("景深模糊")
+    scopes = True
+    compare = True
 
     def __init__(self, window):
         super().__init__(window)
@@ -248,11 +261,10 @@ class DepthBlurPage(ToolPage):
         self._relay.download_done.connect(self._on_downloaded)
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
-        self._timer.setInterval(60)
+        self._timer.setInterval(30)
         self._timer.timeout.connect(self._render)
         self.stage.focus_clicked.connect(self.focus_at)
-        self.save_btn = button(tr("儲存…"), "primary", "download", tr("用原尺寸輸出（Ctrl+S）"), self.save)
-        self.actions.addWidget(self.save_btn)
+        self.add_output_buttons(tr("用原尺寸輸出（Ctrl+S）"))
         self._build()
 
     def make_stage(self):
@@ -274,18 +286,28 @@ class DepthBlurPage(ToolPage):
 
         F.addWidget(section(tr("對焦範圍")))
         self.hist = DepthHistogram()
-        self.hist.changed.connect(lambda *_: self.schedule())
+        # 拖曳時只更新深度圖的顯示（很快）；成品等放開才重算
+        self.hist.changed.connect(lambda *_: self.view.value() == "depth" and self._show())
+        self.hist.released.connect(self.schedule)
         F.addWidget(self.hist)
         F.addWidget(label(tr("拖動滑桿或點點擊照片上想對焦的地方。"),
                           "caption", wrap=True))
         self.bg_only = Flag(tr("只模糊背景"))
         self.bg_only.toggled.connect(lambda *_: self.schedule())
         F.addWidget(self.bg_only)
-        self.amount = SliderField(tr("模糊量"), 0, 100, 1, 50, lambda v: f"{v:.0f}")
-        self.amount.changed.connect(lambda *_: self.schedule())
+
+        F.addWidget(section(tr("鏡頭")))
+        self.aperture = Stepper([(f, f"f/{f:g}") for f in F_STOPS], 1.8, tip=tr("光圈值：越小越糊"), expand=True)
+        self.aperture.changed.connect(lambda *_: self.schedule())
         self.feather = SliderField(tr("過渡"), 1, 50, 1, 8, lambda v: f"{v:.0f}%")
-        self.feather.changed.connect(lambda *_: self.schedule())
-        F.addWidget(row(self.amount, self.feather))
+        self.feather.committed.connect(lambda *_: self.schedule())
+        F.addWidget(row(field(tr("光圈"), self.aperture), self.feather))
+        self.blades = Segmented(BLADES, "0")
+        self.blades.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)   # 跟上下的控制項同寬
+        self.blades.changed.connect(lambda *_: self.schedule())
+        self.bokeh = SliderField(tr("散景亮點"), 0, 100, 1, 50, lambda v: f"{v:.0f}")
+        self.bokeh.committed.connect(lambda *_: self.schedule())
+        F.addWidget(row(field(tr("光圈形狀"), self.blades), self.bokeh))
 
         F.addWidget(section(tr("匯出")))
         self.fmt = QComboBox()
@@ -326,6 +348,8 @@ class DepthBlurPage(ToolPage):
         self.depth = None
         self.stage.marker = None
         self.stage.pix = QPixmap.fromImage(small)
+        self.stage.original = self.stage.pix
+        self.update_scopes(self.small, self.small)
         self.stage.update()
         self.set_status(f"{img.width()}×{img.height()}")
         self.detect()
@@ -385,7 +409,7 @@ class DepthBlurPage(ToolPage):
     # ---------------------------------------------------------------- 預覽
     def params(self):
         return (self.hist.lo, self.hist.hi, self.feather.value() / 100, self.bg_only.isChecked(),
-                self.amount.value() / 100)
+                float(self.aperture.value()), int(self.blades.value()), self.bokeh.value() / 100)
 
     def schedule(self):
         if self.depth is not None:
@@ -399,15 +423,15 @@ class DepthBlurPage(ToolPage):
             return
         token = self._render_token = object()
         rgb, depth = self.small, self.depth
-        lo, hi, feather, bg_only, amount = self.params()
+        lo, hi, feather, bg_only, fnum, blades, bokeh = self.params()
         self._pending_key = (self.params(), id(depth))
         self.stage.busy = True
         self.stage.update()
 
         def run():
             amap = D.blur_amount_map(depth, lo, hi, feather, bg_only)
-            radius = amount * 0.03 * max(rgb.shape[:2])
-            out = D.render(rgb, amap, radius, cancel=lambda: token is not self._render_token)
+            out = D.render(rgb, amap, max_radius(fnum, max(rgb.shape[:2])), blades=blades, bokeh=bokeh,
+                           cancel=lambda: token is not self._render_token)
             self._relay.preview.emit(token, out)
 
         threading.Thread(target=run, daemon=True).start()
@@ -418,6 +442,7 @@ class DepthBlurPage(ToolPage):
         self.stage.busy = False
         self._result = out
         self._result_key = self._pending_key
+        self.update_scopes(out)
         self._show()
 
     def _show(self):
@@ -475,16 +500,14 @@ class DepthBlurPage(ToolPage):
         self.detect()
 
     # ---------------------------------------------------------------- 儲存
-    def save(self):
+    def output_name(self):
+        return f"{safe_name(self.path)}_blur.{self.fmt.currentData()}"
+
+    def output_job(self):
         if self.full is None or self.depth is None:
-            notify(tr("還沒有照片"), "warning")
-            return
-        ext = self.fmt.currentData()
-        path = self.ask_save(f"{safe_name(self.path)}_blur.{ext}")
-        if not path:
-            return
+            return None
         full, depth = self.full, self.depth
-        lo, hi, feather, bg_only, amount = self.params()
+        lo, hi, feather, bg_only, fnum, blades, bokeh = self.params()
 
         def job(progress):
             progress(0.03, tr("準備原尺寸"))
@@ -492,8 +515,8 @@ class DepthBlurPage(ToolPage):
             progress(0.1, tr("對齊深度圖"))
             d = D.refine_to(depth, full_rgb)
             amap = D.blur_amount_map(d, lo, hi, feather, bg_only)
-            out = D.render(full_rgb, amap, amount * 0.03 * max(full_rgb.shape[:2]),
+            out = D.render(full_rgb, amap, max_radius(fnum, max(full_rgb.shape[:2])), blades=blades, bokeh=bokeh,
                            on_progress=lambda k, n: progress(0.25 + 0.6 * k / n, tr('模糊第 {0}/{1} 層').format(k, n)))
             return rgb_to_qimage(out)
 
-        self.export(path, job, int(self.quality.value()), [self.save_btn])
+        return job

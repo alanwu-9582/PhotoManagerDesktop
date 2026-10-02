@@ -145,6 +145,7 @@ class CardStage(Stage):
 
 class PaletteCardPage(ToolPage):
     title = tr("照片色卡")
+    png_only = True
 
     def __init__(self, window):
         super().__init__(window)
@@ -156,8 +157,8 @@ class PaletteCardPage(ToolPage):
         self.meta.layout().insertWidget(0, self.chips_host, 1)
         self.actions.addWidget(button(tr("複製色碼"), None, "copy", tr("把全部色碼複製到剪貼簿"), self.copy_all))
         self.actions.addWidget(button(tr("重設位置"), None, "reset", tr("面板與照片回到預設位置"), self.reset_placement))
-        self.save_btn = button(tr("儲存 PNG…"), "primary", "download", tr("輸出明信片（Ctrl+S）"), self.save)
-        self.actions.addWidget(self.save_btn)
+        self.add_output_buttons(tr("輸出明信片（Ctrl+S）"))
+        self.save_btn.setText(tr("儲存 PNG…"))
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(50)
@@ -282,17 +283,19 @@ class PaletteCardPage(ToolPage):
         img.save(tmp, "PNG")
         self.take(tmp, None)
 
-    def save(self):
+    def output_name(self):
+        return f"{safe_name(self.path)}-{self.st['layout']}.png"
+
+    def output_quality(self):
+        return 100
+
+    def output_job(self):
         if self.st["image"] is None:
-            notify(tr("還沒有照片"), "warning")
-            return
-        path = self.ask_save(f"{safe_name(self.path)}-{self.st['layout']}.png", png_only=True)
-        if not path:
-            return
+            return None
         st = dict(self.st)
 
         def job(progress):
             progress(0.2, tr("繪製明信片"))
             return render_card(st)
 
-        self.export(path, job, 100, [self.save_btn])
+        return job

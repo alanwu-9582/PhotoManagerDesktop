@@ -27,7 +27,7 @@ from ..ui.inspector import open_inspector
 from ..ui.photogrid import GroupHeader, PhotoGrid
 from ..grouping import GROUPS, NEEDS_EXIF, group
 from ..engine.history import history
-from ..ui.widgets import (BadgeButton, Chip, EmptyState, FlowLayout, Segmented, button, hbox, icon_button,
+from ..ui.widgets import (Stepper, BadgeButton, Chip, EmptyState, FlowLayout, Segmented, button, hbox, icon_button,
                           label, notify, vline)
 from .base import Page
 
@@ -232,14 +232,8 @@ class PhotosPage(Page):
 
     def __init__(self, window):
         super().__init__(window)
-        self.col_slider = QSlider(Qt.Orientation.Horizontal)
-        self.col_slider.setRange(1, 8)
-        self.col_slider.setValue(state.columns)
-        self.col_slider.setFixedWidth(120)
-        self.col_slider.setToolTip(tr("每排幾張"))
-        self.col_slider.valueChanged.connect(self.set_columns)
-        self.col_label = label(str(state.columns), "secondary")
-        self.col_label.setFixedWidth(14)
+        self.col_slider = Stepper([(n, str(n)) for n in range(1, 9)], state.columns, tip=tr("每排幾張"))
+        self.col_slider.changed.connect(self.set_columns)
         self.filter_btn = BadgeButton(tr("篩選"), "filter")
         self.filter_btn.clicked.connect(self.open_filters)
         self.field_btn = BadgeButton(tr("EXIF 欄位"), "info")
@@ -258,7 +252,7 @@ class PhotosPage(Page):
         self.collapse_btn = button(tr("全部收合"), None, "chevron-right", on_click=lambda: self.collapse_all(True))
         self.cols_label = label(tr("每排"), "secondary")
         self.collapsed: set[str] = set()
-        for w in (self.display, 8, self.cols_label, self.col_slider, self.col_label, 6, vline(), 6,
+        for w in (self.display, 8, self.cols_label, self.col_slider, 6, vline(), 6,
                   label(tr("群組"), "secondary"), self.group_box, self.expand_btn, self.collapse_btn, 6, vline(), 6,
                   self.filter_btn, self.field_btn, None, self.count):
             if w is None:
@@ -308,7 +302,7 @@ class PhotosPage(Page):
         self.expand_btn.setVisible(grouped)
         self.collapse_btn.setVisible(grouped)
         cards = self.display.value() == "card"
-        for w in (self.cols_label, self.col_slider, self.col_label):
+        for w in (self.cols_label, self.col_slider):
             w.setVisible(cards)
 
     def _on_categories(self):
@@ -385,7 +379,6 @@ class PhotosPage(Page):
     def set_columns(self, n):
         state.columns = n
         config.settings.set("columns", n)
-        self.col_label.setText(str(n))
         self.grid.set_columns(n)
 
     def clear_filters(self):

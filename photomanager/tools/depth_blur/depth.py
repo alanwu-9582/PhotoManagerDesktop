@@ -12,14 +12,15 @@
      失焦量看不出遠近，就改由先驗決定。
   結果是 0（近／清楚）到 1（遠／模糊）的一張圖。
 
-畫模糊：把照片模糊成幾層（0、1/6、2/6 … 最大半徑），每個像素依它跟對焦範圍的距離
-在相鄰兩層之間內插。模糊時用正規化卷積把「清楚的主體」排除在外，背景糊開的時候
-才不會把主體的顏色暈出去。大半徑的那幾層先縮小再模糊，速度跟半徑幾乎無關。
+畫模糊（模擬鏡頭）：在線性光裡用光圈形狀的核心（圓形或多邊形）把照片糊成幾層，
+每個像素依它的模糊圈（跟對焦面的深度差）在相鄰兩層之間內插。接近死白的亮點先推亮，
+糊開才會變成一顆顆明亮、邊緣清楚的散景。模糊時用正規化卷積把「清楚的主體」排除在外，
+背景糊開的時候才不會把主體的顏色暈出去。大半徑的那幾層先縮小再用 FFT 卷積，速度跟半徑幾乎無關。
 """
 from __future__ import annotations
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image
 
 DEPTH_EDGE = 512   # 估深度用的長邊
 
@@ -174,29 +175,88 @@ def blur_amount_map(depth, lo, hi, feather, bg_only):
     return (coc * onset).astype(np.float32)
 
 
-def _blur_level(img: Image.Image, radius: float) -> Image.Image:
-    """半徑大的先縮小再模糊，再放回來 —— 反正都糊了，看不出差別，速度快很多。"""
-    if radius < 0.5:
-        return img
-    f = max(1, int(radius / 5))
-    if f > 1:
-        small = img.resize((max(1, img.width // f), max(1, img.height // f)), Image.Resampling.BILINEAR)
-        return small.filter(ImageFilter.GaussianBlur(radius / f)).resize(img.size, Image.Resampling.BILINEAR)
-    return img.filter(ImageFilter.GaussianBlur(radius))
+# ---------------------------------------------------------------- 鏡頭的模糊
+# 跟高斯模糊不一樣的地方：
+#   1. 在線性光裡混光（真實的光是相加的），不是在 sRGB 的數值上平均。
+#   2. 核心是光圈的形狀（圓形或多邊形，邊緣清楚），所以一個亮點會散成一顆邊緣清楚的圓盤 / 多邊形。
+#   3. 亮點的能量比畫面上記錄到的還大（早就過曝了），先把接近死白的地方推亮，糊開之後才會是
+#      一顆顆明亮的散景，而不是灰灰的一片。
+LEVEL_KERNEL = 14       # 每一層縮小到光圈半徑大約這麼多像素再算：預覽和原尺寸的散景邊緣一樣利
+
+
+def aperture_kernel(r: float, blades: int = 0, rotation: float = 0.3) -> np.ndarray:
+    """半徑 r 的光圈形狀（加總 = 1）。blades = 0 是圓形，6、9… 是幾片葉片圍出的多邊形。"""
+    n = max(1, int(np.ceil(r)))
+    yy, xx = np.mgrid[-n:n + 1, -n:n + 1].astype(np.float32)
+    dist = np.hypot(xx, yy)
+    if blades >= 3:
+        seg = 2 * np.pi / blades
+        th = (np.arctan2(yy, xx) - rotation) % seg - seg / 2
+        dist = dist * np.cos(th) / np.cos(seg / 2)        # 多邊形的「距離」：邊上 = r
+    k = np.clip(r + 0.5 - dist, 0, 1)                     # 邊緣抗鋸齒一個像素
+    # 真的鏡頭散景邊緣稍微亮一點（球面像差），加一點點就好
+    k = k * (1 + 0.18 * np.clip((dist / max(r, 1)) ** 4, 0, 1))
+    return (k / k.sum()).astype(np.float32)
+
+
+def _good(n):
+    """FFT 好算的長度（只有 2、3、5 的因數）。"""
+    while True:
+        m = n
+        for f in (2, 3, 5):
+            while m % f == 0:
+                m //= f
+        if m == 1:
+            return n
+        n += 1
+
+
+def _conv_fft(chs, K):
+    """幾張同大小的 2D 圖一起跟 K 做卷積（邊緣複製）。"""
+    n = K.shape[0] // 2
+    h, w = chs[0].shape
+    FH, FW = _good(h + 4 * n), _good(w + 4 * n)
+    Kp = np.zeros((FH, FW), np.float32)
+    Kp[:K.shape[0], :K.shape[1]] = K
+    Kf = np.fft.rfft2(Kp)
+    out = []
+    for a in chs:
+        ap = np.pad(a, n, mode="edge")
+        r = np.fft.irfft2(np.fft.rfft2(ap, s=(FH, FW)) * Kf, s=(FH, FW))
+        out.append(r[2 * n:2 * n + h, 2 * n:2 * n + w].astype(np.float32))
+    return out
+
+
+def _resize_f(a, w, h):
+    return np.asarray(Image.fromarray(np.ascontiguousarray(a, dtype=np.float32), "F").resize(
+        (w, h), Image.Resampling.BILINEAR), dtype=np.float32)
 
 
 def render(rgb: np.ndarray, amount_map: np.ndarray, max_radius: float, levels=8, cancel=None,
-           on_progress=None) -> np.ndarray:
-    """rgb: HxWx3 uint8；amount_map: HxW 0..1；回傳 uint8。"""
+           on_progress=None, blades=0, bokeh=0.4) -> np.ndarray:
+    """rgb: HxWx3 uint8；amount_map: HxW 0..1（每個像素的模糊圈 / 最大模糊圈）；回傳 uint8。
+
+    把照片在線性光裡糊成幾層（光圈半徑 1/levels、2/levels … 1 倍），
+    每個像素依自己的模糊圈在相鄰兩層之間內插。
+    """
     if max_radius < 0.5 or float(amount_map.max()) < 1e-3:
         return rgb
-    arr = rgb.astype(np.float32)
-    # 正規化卷積的權重：清楚的主體幾乎不參與模糊，背景糊開時才不會把主體的顏色帶出去。
-    w = (0.04 + 0.96 * amount_map).astype(np.float32)
-    pre = Image.fromarray(np.clip(arr * w[..., None], 0, 255).astype(np.uint8))
-    wimg = Image.fromarray(np.clip(w * 255, 0, 255).astype(np.uint8))
+    H, W = rgb.shape[:2]
+    lin = np.power(rgb.astype(np.float32) / 255, 2.2, dtype=np.float32)
+    w = (0.04 + 0.96 * amount_map).astype(np.float32)        # 清楚的主體幾乎不參與模糊，顏色才不會暈出去
+    peak = lin.max(axis=2)
+    # 接近死白的「點光源」真正的亮度可能是記錄值的好幾十倍，推亮它們，糊開才會是一顆顆散景。
+    # 只推比周圍亮很多的小亮點；天空那種大片的亮區不推，不然會整片暈開蓋住旁邊的東西。
+    sh, sw = max(4, round(H / 8)), max(4, round(W / 8))
+    local = _resize_f(gauss(_resize_f(peak, sw, sh), max(sw, sh) / 40), W, H)
+    spec = np.clip((peak - local) / 0.3, 0, 1)
+    boost = (1 + bokeh * 30 * (np.clip((peak - 0.7) / 0.3, 0, 1) ** 3) * spec).astype(np.float32)
+    del local, spec
+    src = [lin[..., c] * boost * w for c in range(3)]
+    del boost, peak
     t = amount_map * levels
-    out = arr * np.clip(1 - t, 0, 1)[..., None]
+    lin *= np.clip(1 - t, 0, 1)[..., None]
+    out = lin
     for k in range(1, levels + 1):
         if cancel and cancel():
             return rgb
@@ -206,11 +266,17 @@ def render(rgb: np.ndarray, amount_map: np.ndarray, max_radius: float, levels=8,
         if not hat.any():
             continue
         r = max_radius * k / levels
-        num = np.asarray(_blur_level(pre, r), dtype=np.float32)
-        den = np.asarray(_blur_level(wimg, r), dtype=np.float32)[..., None] / 255
-        level = num / np.maximum(den, 1e-3)
-        out += level * hat[..., None]
-    return np.clip(out, 0, 255).astype(np.uint8)
+        f = max(1.0, r / LEVEL_KERNEL)
+        sw, sh = max(4, round(W / f)), max(4, round(H / f))
+        small = [_resize_f(a, sw, sh) for a in src] + [_resize_f(w, sw, sh)]
+        K = aperture_kernel(max(0.8, r / f), blades)
+        conv = _conv_fft(small, K)
+        den = np.maximum(_resize_f(conv[3], W, H), 1e-4)
+        scale = hat / den
+        for c in range(3):
+            out[..., c] += _resize_f(conv[c], W, H) * scale
+    # 推亮過的散景超過 1 的部分直接夾掉：亮點會是一顆實心、邊緣清楚的圓
+    return np.clip(np.power(np.clip(out, 0, 1), 1 / 2.2) * 255 + 0.5, 0, 255).astype(np.uint8)
 
 
 def colorize(depth: np.ndarray, lo=None, hi=None) -> np.ndarray:

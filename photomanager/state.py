@@ -59,10 +59,12 @@ class AppState(QObject):
     def enabled_fields(self):
         return [(k, label) for k, label, _ in FIELD_DEFS if self.fields.get(k)]
 
-    def set_editor_photo(self, path: str | None, photo_id: int | None = None, image=None, origin=None, source=None):
-        """image / origin / source：某個編輯工具存下來的結果（圖本身、原始照片路徑、哪個工具）。"""
+    def set_editor_photo(self, path: str | None, photo_id: int | None = None, image=None, origin=None, source=None,
+                         stashed=False):
+        """image / origin / source：某個編輯工具存下來的結果（圖本身、原始照片路徑、哪個工具）。
+        stashed：只是暫存（沒有寫成檔案），path 仍是原本那張的路徑。"""
         self.editor_photo = ({"path": path, "photo_id": photo_id, "image": image, "origin": origin or path,
-                              "source": source} if path else None)
+                              "source": source, "stashed": stashed} if path else None)
         self.editor_version += 1
         self.editor_changed.emit()
 

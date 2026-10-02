@@ -87,8 +87,7 @@ class ExifFramePage(ToolPage):
         self._timer.setSingleShot(True)
         self._timer.setInterval(16)
         self._timer.timeout.connect(self._paint)
-        self.save_btn = button(tr("儲存…"), "primary", "download", tr("輸出加上相框的照片（Ctrl+S）"), self.save)
-        self.actions.addWidget(self.save_btn)
+        self.add_output_buttons(tr("輸出加上相框的照片（Ctrl+S）"))
         self._build()
 
     def _build(self):
@@ -248,14 +247,12 @@ class ExifFramePage(ToolPage):
         self.stage.pix = QPixmap.fromImage(out)
         self.stage.update()
 
-    def save(self):
+    def output_name(self):
+        return f"{safe_name(self.path)}_frame.{self.fmt.currentData()}"
+
+    def output_job(self):
         if self.img is None:
-            notify(tr("還沒有照片"), "warning")
-            return
-        ext = self.fmt.currentData()
-        path = self.ask_save(f"{safe_name(self.path)}_frame.{ext}")
-        if not path:
-            return
+            return None
         src, o, logo = self.img, dict(self.o), self.logo
         width = round(self.img.width() * float(self.scale.currentData()))
 
@@ -263,4 +260,4 @@ class ExifFramePage(ToolPage):
             progress(0.2, tr("排版與繪製相框"))
             return render_frame(src, o, width, logo)
 
-        self.export(path, job, int(self.quality.value()), [self.save_btn])
+        return job

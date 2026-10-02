@@ -7,12 +7,12 @@ from __future__ import annotations
 
 from ..i18n import tr
 
-from PySide6.QtCore import (QEasingCurve, QPoint, QPropertyAnimation, QRect, QRectF, QSize, Qt,
+from PySide6.QtCore import (QEasingCurve, QPoint, QPointF, QPropertyAnimation, QRect, QRectF, QSize, Qt,
                             QTimer, Signal, Property)
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QFontMetrics
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFontMetrics
 from PySide6.QtWidgets import (QAbstractButton, QColorDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel,
                                QLayout, QPushButton, QSizePolicy, QSlider, QToolButton, QVBoxLayout,
-                               QWidget, QWidgetItem, QStyle, QGraphicsOpacityEffect)
+                               QWidget, QWidgetItem, QStyle, QStyleOptionSlider, QGraphicsOpacityEffect)
 
 from . import icons, theme
 
@@ -249,9 +249,35 @@ class Segmented(QWidget):
 
 
 # ============================================================ 滑桿 + 數值
+class JumpSlider(QSlider):
+    """點軌道的任何地方就直接跳到那裡（Qt 預設是往那邊跳一個 pageStep），而且可以接著拖。"""
+
+    def mousePressEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton and self.isEnabled():
+            opt = QStyleOptionSlider()
+            self.initStyleOption(opt)
+            handle = self.style().subControlRect(QStyle.ComplexControl.CC_Slider, opt,
+                                                 QStyle.SubControl.SC_SliderHandle, self)
+            if not handle.contains(e.position().toPoint()):
+                groove = self.style().subControlRect(QStyle.ComplexControl.CC_Slider, opt,
+                                                     QStyle.SubControl.SC_SliderGroove, self)
+                span = max(1, groove.width() - handle.width())
+                x = int(e.position().x() - groove.x() - handle.width() / 2)
+                self.jumping = True          # 跳過去的這一下還在按著，不算「放開」
+                self.setValue(QStyle.sliderValueFromPosition(self.minimum(), self.maximum(), x, span,
+                                                             opt.upsideDown))
+                self.jumping = False
+        super().mousePressEvent(e)     # 把手現在就在游標下面，接下來的移動就是拖曳
+
+
 class SliderField(QWidget):
-    """標題 + 目前的值 + 滑桿。值可以是小數（內部用整數刻度換算）。"""
+    """標題 + 目前的值 + 滑桿。值可以是小數（內部用整數刻度換算）。
+
+    changed：值一變就發（拖曳中也會）；committed：放開滑桿、或用點的 / 鍵盤改值時才發 ——
+    算得很慢的效果接 committed，拖曳時就不會一直重算。
+    """
     changed = Signal(float)
+    committed = Signal(float)
 
     def __init__(self, title, lo, hi, step=1.0, value=0.0, fmt=None, parent=None):
         super().__init__(parent)
@@ -261,10 +287,11 @@ class SliderField(QWidget):
         self.title = label(title, "secondary")
         self.out = label("", "mono")
         self.out.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider = JumpSlider(Qt.Orientation.Horizontal)
         self.slider.setRange(0, round((hi - lo) / step))
         self.slider.setCursor(Qt.CursorShape.PointingHandCursor)
         self.slider.valueChanged.connect(self._on)
+        self.slider.sliderReleased.connect(lambda: self.committed.emit(self.value()))
         self.setLayout(vbox(hbox(self.title, None, self.out), self.slider, spacing=4))
         self.set(value)
 
@@ -280,9 +307,138 @@ class SliderField(QWidget):
     def _on(self, _):
         self.out.setText(self._fmt(self.value()))
         self.changed.emit(self.value())
+        if not self.slider.isSliderDown() and not getattr(self.slider, "jumping", False):
+            self.committed.emit(self.value())
 
     def mouseDoubleClickEvent(self, e):
         super().mouseDoubleClickEvent(e)
+
+
+# ============================================================ 有級的數值
+class Stepper(QWidget):
+    """一格一格的值（光圈 f 值、每排幾張…）：[‹]  值  [›]。點中間的值會列出全部選項直接挑。
+
+    options：[(值, 顯示文字), ...]；鍵盤左右鍵也可以換。
+    """
+    changed = Signal(object)
+    BTN = 30
+
+    def __init__(self, options, value=None, parent=None, tip=None, expand=False):
+        super().__init__(parent)
+        self._options = list(options)
+        self._expand = expand          # True：跟同一欄的下拉選單一樣撐滿欄寬
+        vals = [v for v, _ in self._options]
+        self._i = vals.index(value) if value in vals else 0
+        self._hover = None
+        self.setMouseTracking(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+        self.setFixedHeight(theme.CONTROL_H)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding if expand else QSizePolicy.Policy.Fixed,
+                           QSizePolicy.Policy.Fixed)
+        if tip:
+            self.setToolTip(tip)
+
+    def value(self):
+        return self._options[self._i][0]
+
+    def setValue(self, v, emit=False):  # noqa: N802
+        vals = [x for x, _ in self._options]
+        if v in vals and vals.index(v) != self._i:
+            self._i = vals.index(v)
+            self.update()
+            if emit:
+                self.changed.emit(self.value())
+
+    def step(self, d):
+        i = max(0, min(len(self._options) - 1, self._i + d))
+        if i != self._i:
+            self._i = i
+            self.update()
+            self.changed.emit(self.value())
+
+    def _text_w(self):
+        fm = QFontMetrics(theme.font("callout", 600))
+        return max(fm.horizontalAdvance(t) for _, t in self._options) + 16
+
+    def sizeHint(self):
+        return QSize(self.BTN * 2 + self._text_w(), theme.CONTROL_H)
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
+
+    def _part(self, x):
+        if x < self.BTN:
+            return "dec"
+        if x > self.width() - self.BTN:
+            return "inc"
+        return "menu"
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = QRectF(self.rect())
+        p.fillPath(theme.round_rect(QPainterPath(), r, 7), theme.c("fill"))
+        on = self.isEnabled()
+        for part, rr, glyph, ok in (("dec", QRectF(2, 2, self.BTN - 4, r.height() - 4), "chevron-left", self._i > 0),
+                                    ("inc", QRectF(r.width() - self.BTN + 2, 2, self.BTN - 4, r.height() - 4),
+                                     "chevron-right", self._i < len(self._options) - 1)):
+            if self._hover == part and ok and on:
+                p.fillPath(theme.round_rect(QPainterPath(), rr, 5), theme.c("fill_strong"))
+            col = theme.T["label"] if ok and on else theme.T["tertiary"]
+            pm = icons.pixmap(glyph, col, 13)
+            c = rr.center()
+            p.drawPixmap(QRectF(c.x() - 6.5, c.y() - 6.5, 13, 13), pm, QRectF(pm.rect()))
+        mid = QRectF(self.BTN, 2, r.width() - self.BTN * 2, r.height() - 4)
+        seg = theme.round_rect(QPainterPath(), mid, 5.5)
+        p.fillPath(seg, QColor("#636366") if theme.IS_DARK else QColor("#ffffff"))
+        if self._hover == "menu" and on:
+            p.fillPath(seg, theme.c("fill"))
+        p.setFont(theme.font("callout", 600))
+        p.setPen(theme.c("label") if on else theme.c("tertiary"))
+        p.drawText(mid, Qt.AlignmentFlag.AlignCenter, self._options[self._i][1])
+        if self.hasFocus():
+            pen = QPen(theme.c("accent"), 1.5)
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawPath(theme.round_rect(QPainterPath(), r.adjusted(0.75, 0.75, -0.75, -0.75), 7))
+        p.end()
+
+    def mouseMoveEvent(self, e):
+        h = self._part(e.position().x())
+        if h != self._hover:
+            self._hover = h
+            self.update()
+
+    def leaveEvent(self, _):
+        self._hover = None
+        self.update()
+
+    def mousePressEvent(self, e):
+        if e.button() != Qt.MouseButton.LeftButton or not self.isEnabled():
+            return
+        part = self._part(e.position().x())
+        if part == "dec":
+            self.step(-1)
+        elif part == "inc":
+            self.step(1)
+        else:
+            from PySide6.QtWidgets import QMenu
+            menu = QMenu(self)
+            for i, (_, text) in enumerate(self._options):
+                act = menu.addAction(text)
+                act.setCheckable(True)
+                act.setChecked(i == self._i)
+                act.triggered.connect(lambda _=False, k=i: self.step(k - self._i))
+            menu.exec(self.mapToGlobal(QPoint(self.BTN, self.height() + 2)))
+
+    def keyPressEvent(self, e):
+        if e.key() in (Qt.Key.Key_Left, Qt.Key.Key_Down):
+            self.step(-1)
+        elif e.key() in (Qt.Key.Key_Right, Qt.Key.Key_Up):
+            self.step(1)
+        else:
+            super().keyPressEvent(e)
 
 
 # ============================================================ 欄位（標題在上）
@@ -663,3 +819,154 @@ class Flag(QAbstractButton):
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawPath(theme.round_rect(QPainterPath(), outer.adjusted(-1, -1, 1, 1), 7))
         p.end()
+
+
+# ============================================================ 調整用的一列滑桿（Lightroom 那種）
+class ParamSlider(QWidget):
+    """一列：名稱、滑桿、數值。雙擊名稱或滑桿回到預設值；有中點的（-100..100）從中間往兩邊填色。
+
+    gradient 給一串顏色就把軌道畫成漸層（色溫、色調、色相那種）。拖曳時發 changed，放開時發 released。
+    """
+    changed = Signal(float)
+    released = Signal()
+    H = 30
+    LABEL_W = 86
+    VALUE_W = 46
+
+    def __init__(self, title, lo, hi, value=0.0, step=1.0, default=None, fmt=None, gradient=None, parent=None):
+        super().__init__(parent)
+        self.title = title
+        self.lo, self.hi, self.step = lo, hi, step
+        self.default = value if default is None else default
+        self._v = value
+        self.fmt = fmt or (lambda v: f"{v:+.0f}" if lo < 0 < hi else f"{v:.0f}")
+        self.gradient = gradient
+        self._drag = False
+        self._hover = False
+        self.setFixedHeight(self.H)
+        self.setMinimumWidth(220)
+        self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    def value(self):
+        return self._v
+
+    def set(self, v, emit=False):
+        v = min(self.hi, max(self.lo, round(v / self.step) * self.step))
+        if abs(v - self._v) < 1e-9:
+            return
+        self._v = v
+        self.update()
+        if emit:
+            self.changed.emit(v)
+
+    def set_gradient(self, colors):
+        self.gradient = colors
+        self.update()
+
+    def _track(self) -> QRectF:
+        return QRectF(self.LABEL_W + 8, self.H / 2 - 2, self.width() - self.LABEL_W - self.VALUE_W - 16, 4)
+
+    def _x(self, v):
+        t = self._track()
+        return t.x() + (v - self.lo) / (self.hi - self.lo) * t.width()
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        enabled = self.isEnabled()
+        changed = abs(self._v - self.default) > 1e-9
+        p.setFont(theme.font("callout", 600 if changed else 400))
+        p.setPen(theme.c("label" if changed and enabled else "secondary"))
+        fm = QFontMetrics(p.font())
+        p.drawText(QRectF(0, 0, self.LABEL_W, self.H), Qt.AlignmentFlag.AlignVCenter,
+                   fm.elidedText(self.title, Qt.TextElideMode.ElideRight, self.LABEL_W))
+        t = self._track()
+        track = theme.round_rect(QPainterPath(), t, 2)
+        if self.gradient:
+            from PySide6.QtGui import QLinearGradient
+            g = QLinearGradient(t.left(), 0, t.right(), 0)
+            n = len(self.gradient)
+            for i, c in enumerate(self.gradient):
+                g.setColorAt(i / max(1, n - 1), QColor(c))
+            p.fillPath(track, g)
+        else:
+            p.fillPath(track, theme.c("fill_strong"))
+            # 從中點（或最左邊）填到目前的值
+            origin = 0 if self.lo < 0 < self.hi else self.lo
+            a, b = sorted((self._x(origin), self._x(self._v)))
+            if b - a > 0.5:
+                fill = theme.c("accent")
+                if not enabled:
+                    fill.setAlphaF(0.4)
+                p.fillPath(theme.round_rect(QPainterPath(), QRectF(a, t.y(), b - a, t.height()), 2), fill)
+        if self.lo < 0 < self.hi:
+            p.setPen(theme.c("tertiary"))
+            x0 = self._x(0)
+            p.drawLine(QPointF(x0, t.y() - 4), QPointF(x0, t.y() - 1))
+        # 把手
+        x = self._x(self._v)
+        r = 7 if (self._drag or self._hover) else 6
+        p.setPen(QColor(0, 0, 0, 50))
+        p.setBrush(theme.c("slider_thumb" if not self._drag else "slider_thumb_hover") if enabled else theme.c("tertiary"))
+        p.drawEllipse(QPointF(x, t.center().y()), r, r)
+        p.setFont(theme.font("callout", mono=True))
+        p.setPen(theme.c("label" if changed else "secondary"))
+        p.drawText(QRectF(self.width() - self.VALUE_W, 0, self.VALUE_W, self.H),
+                   Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, self.fmt(self._v))
+        p.end()
+
+    def _from_x(self, x):
+        t = self._track()
+        f = min(1.0, max(0.0, (x - t.x()) / max(1.0, t.width())))
+        return self.lo + f * (self.hi - self.lo)
+
+    def mousePressEvent(self, e):
+        if e.button() != Qt.MouseButton.LeftButton or not self.isEnabled():
+            return
+        if e.position().x() < self.LABEL_W:
+            return
+        x = e.position().x()
+        on_thumb = abs(x - self._x(self._v)) <= 8
+        # 點在軌道上：直接跳到那個位置；按在把手上：保持原值，從這裡開始拖（不會先跳一下）
+        self._grab = (x - self._x(self._v)) if on_thumb else 0.0
+        self._drag = True
+        if not on_thumb:
+            self.set(self._from_x(x), emit=True)
+        self.update()
+
+    def mouseMoveEvent(self, e):
+        over = abs(e.position().x() - self._x(self._v)) <= 10
+        if over != self._hover:
+            self._hover = over
+            self.update()
+        self.setCursor(Qt.CursorShape.PointingHandCursor if e.position().x() >= self.LABEL_W else Qt.CursorShape.ArrowCursor)
+        if self._drag:
+            self.set(self._from_x(e.position().x() - getattr(self, "_grab", 0.0)), emit=True)
+
+    def mouseReleaseEvent(self, e):
+        if self._drag:
+            self._drag = False
+            self.update()
+            self.released.emit()
+
+    def mouseDoubleClickEvent(self, e):
+        self._drag = False
+        self.set(self.default, emit=True)
+        self.released.emit()
+
+    def leaveEvent(self, _):
+        self._hover = False
+        self.update()
+
+    def keyPressEvent(self, e):
+        big = 10 if e.modifiers() & Qt.KeyboardModifier.ShiftModifier else 1
+        if e.key() in (Qt.Key.Key_Left, Qt.Key.Key_Down):
+            self.set(self._v - self.step * big, emit=True)
+            self.released.emit()
+        elif e.key() in (Qt.Key.Key_Right, Qt.Key.Key_Up):
+            self.set(self._v + self.step * big, emit=True)
+            self.released.emit()
+        else:
+            super().keyPressEvent(e)
