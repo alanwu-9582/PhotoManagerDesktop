@@ -119,15 +119,18 @@ class Sampler:
         self.x1 = np.minimum(self.x0 + 1, mw - 1)
         self.wx = (x - self.x0).astype(np.float32)
 
-    def rows(self, m, y0, y1):
+    def rows(self, m, y0, y1, x0=0, x1=None):
+        """第 y0..y1 列、第 x0..x1 欄（原尺寸座標）的內插值。"""
         y = (np.arange(y0, y1, dtype=np.float32) + 0.5) * self.mh / self.H - 0.5
         y = np.clip(y, 0, self.mh - 1)
         yi0 = np.floor(y).astype(np.int32)
         yi1 = np.minimum(yi0 + 1, self.mh - 1)
         wy = (y - yi0)[:, None].astype(np.float32)
         a, b = m[yi0], m[yi1]
-        top = a[:, self.x0] * (1 - self.wx) + a[:, self.x1] * self.wx
-        bot = b[:, self.x0] * (1 - self.wx) + b[:, self.x1] * self.wx
+        cols = slice(x0, x1)
+        xa, xb, wx = self.x0[cols], self.x1[cols], self.wx[cols]
+        top = a[:, xa] * (1 - wx) + a[:, xb] * wx
+        bot = b[:, xa] * (1 - wx) + b[:, xb] * wx
         return top * (1 - wy) + bot * wy
 
 
@@ -344,23 +347,24 @@ def _grain_field(p, W, H):
     return rng.standard_normal((gh, gw)).astype(np.float32)
 
 
-def apply_rows(g, p, maps, sampler, y0, W, H, grain=None, gsampler=None):
-    """g: 這幾列的 sRGB 0..1（h×W×3），回傳處理好的 0..1。"""
-    h = g.shape[0]
-    xs = np.arange(W, dtype=np.float32) + 0.5
+def apply_rows(g, p, maps, sampler, y0, W, H, grain=None, gsampler=None, x0=0):
+    """g: 一塊 sRGB 0..1（h×w×3），左上角在整張（W×H）的 (x0, y0)；回傳處理好的 0..1。"""
+    h, w = g.shape[:2]
+    xs = np.arange(x0, x0 + w, dtype=np.float32) + 0.5
     ys = np.arange(y0, y0 + h, dtype=np.float32) + 0.5
+    rows = lambda m: sampler.rows(m, y0, y0 + h, x0, x0 + w)  # noqa: E731
     lin = stage_linear(g, p, xs, ys, W, H)
     out = to_gamma(lin)
     if p["dehaze"] and "t" in maps:
-        out = _dehaze(out, p["dehaze"] / 100, maps["A"], sampler.rows(maps["t"], y0, y0 + h))
+        out = _dehaze(out, p["dehaze"] / 100, maps["A"], rows(maps["t"]))
     # 攝影風格當作「底片」先套，後面的滑桿在它上面微調（跟 iPhone 拍完再修圖一樣）
     out = ST.apply(out, p.get("style", ST.DEFAULT))
     L = luma(out)
-    base = sampler.rows(maps["base"], y0, y0 + h)
+    base = rows(maps["base"])
     L2 = _tone(L, base, p)
     if p["clarity"] and "band" in maps:
         mid = np.clip(4 * np.clip(L2, 0, 1) * (1 - np.clip(L2, 0, 1)), 0, 1) ** 0.6
-        L2 = L2 + p["clarity"] / 100 * 1.6 * sampler.rows(maps["band"], y0, y0 + h) * mid
+        L2 = L2 + p["clarity"] / 100 * 1.6 * rows(maps["band"]) * mid
     if p["texture"]:
         detail = L - blur8(L, max(W, H) / 900)
         L2 = L2 + p["texture"] / 100 * 1.4 * detail
@@ -377,7 +381,7 @@ def apply_rows(g, p, maps, sampler, y0, W, H, grain=None, gsampler=None):
         v = p["vignette"] / 100
         out = out * np.power(2.0, 1.8 * v * m, dtype=np.float32) if v < 0 else out + (1 - out) * (v * 0.85 * m)
     if p["grain"] and grain is not None:
-        n = gsampler.rows(grain, y0, y0 + h)
+        n = gsampler.rows(grain, y0, y0 + h, x0, x0 + w)
         Lc = np.clip(luma(out), 0, 1)
         amp = p["grain"] / 100 * 0.07 * (0.35 + 0.65 * 4 * Lc * (1 - Lc))
         out = out + (n * amp)[..., None]
@@ -420,6 +424,24 @@ def render(rgb_u8: np.ndarray, p, progress=None, cancel=None) -> np.ndarray:
     if cancel and cancel():
         return None
     return out
+
+
+def render_region(region_u8: np.ndarray, p, maps, W, H, x0, y0) -> np.ndarray:
+    """只算整張照片裡的一塊（放大檢視用）。
+
+    region_u8 是那一塊（已經縮放成要顯示的大小），W×H 是整張照片在同一個縮放比例下的大小，
+    (x0, y0) 是這一塊的左上角。maps 用 prepare() 在整張（預覽圖就行）上算好的 ——
+    亮部 / 陰影、清晰度、去朦朧、暈影、聚光燈、顆粒都跟整張算的一樣，只是解析度更高。
+    """
+    if is_identity(p):
+        return region_u8
+    sampler = Sampler(*maps["shape"], H, W)
+    grain = gsampler = None
+    if p["grain"]:
+        grain = _grain_field(p, W, H)
+        gsampler = Sampler(grain.shape[0], grain.shape[1], H, W)
+    res = apply_rows(region_u8.astype(np.float32) / 255, p, maps, sampler, y0, W, H, grain, gsampler, x0=x0)
+    return np.clip(res * 255 + 0.5, 0, 255).astype(np.uint8)
 
 
 def auto_tone(rgb_u8: np.ndarray, p) -> dict:

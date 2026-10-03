@@ -45,6 +45,7 @@ def ev_fmt(v):
 
 class _Relay(QObject):
     done = Signal(object, object, object)     # gen, kind, rgb array
+    detail = Signal(object, object, object, object, object)   # token, gen, 成品, 原圖, 區域
     thumb = Signal(object, str, object)       # token, 風格名稱, rgb array
 
 
@@ -57,23 +58,21 @@ class AdjustStage(Stage):
         self._drag = None
         self.setMouseTracking(True)
 
-    def image_rect(self) -> QRectF:
-        if not self.pix:
-            return QRectF()
-        pad = 18
-        k = min((self.width() - pad * 2) / self.pix.width(), (self.height() - pad * 2) / self.pix.height())
-        w, h = self.pix.width() * k, self.pix.height() * k
-        return QRectF((self.width() - w) / 2, (self.height() - h) / 2, w, h)
-
     def paint_content(self, p: QPainter):
         if not self.pix:
             return
-        r = self.image_rect()
-        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        pix = self.shown_pix(self.pix)
-        p.drawPixmap(r, pix, QRectF(pix.rect()))
-        if self.tool.spot_mode() and not self.comparing:
-            self._paint_spots(p, r)
+        self.paint_photo(p, self.pix)
+        if self.editing_spots() and not self.comparing:
+            self._paint_spots(p, self.image_rect())
+
+    def mouseDoubleClickEvent(self, e):
+        if self.editing_spots():
+            return          # 編輯聚光燈時雙擊不切換縮放（第一下已經在畫聚光燈了）
+        super().mouseDoubleClickEvent(e)
+
+    def editing_spots(self):
+        """在聚光燈分頁、而且框線沒有藏起來：滑鼠是在畫 / 改聚光燈；否則滑鼠拿來拖曳檢視。"""
+        return self.tool.spot_mode() and self.overlay_visible
 
     # ---------------------------------------------------------------- 聚光燈的幾何
     def _geo(self, s, r=None):
@@ -172,9 +171,14 @@ class AdjustStage(Stage):
         return (pos.x() - r.x()) / r.width(), (pos.y() - r.y()) / r.height()
 
     def mousePressEvent(self, e):
-        if self.empty or not self.pix or e.button() != Qt.MouseButton.LeftButton:
+        if self.empty or not self.pix:
             return
-        if not self.tool.spot_mode():
+        # 中鍵隨時可以拖曳檢視；左鍵在沒有編輯聚光燈的時候拖曳檢視
+        if self.zoomed() and (e.button() == Qt.MouseButton.MiddleButton or
+                              (e.button() == Qt.MouseButton.LeftButton and not self.editing_spots())):
+            self.start_pan(e.position())
+            return
+        if e.button() != Qt.MouseButton.LeftButton or not self.editing_spots():
             return
         pos = e.position()
         r = self.image_rect()
@@ -191,16 +195,19 @@ class AdjustStage(Stage):
 
     def mouseMoveEvent(self, e):
         pos = e.position()
+        if self._pan is not None:
+            self.move_pan(pos)
+            return
         if not self._drag:
             if self.empty:
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
-            elif self.tool.spot_mode():
+            elif self.editing_spots():
                 _, kind = self._hit(pos)
                 self.setCursor(Qt.CursorShape.SizeAllCursor if kind == "move" else
                                Qt.CursorShape.CrossCursor if kind is None else
                                Qt.CursorShape.PointingHandCursor if kind == "rot" else Qt.CursorShape.SizeFDiagCursor)
             else:
-                self.setCursor(Qt.CursorShape.ArrowCursor)
+                self.setCursor(Qt.CursorShape.OpenHandCursor if self.zoomed() else Qt.CursorShape.ArrowCursor)
             return
         d = self._drag
         s = self.tool.p["spots"][self.tool.sel]
@@ -245,6 +252,9 @@ class AdjustStage(Stage):
         self.update()
 
     def mouseReleaseEvent(self, e):
+        if self._pan is not None:
+            self.end_pan()
+            return
         if self._drag:
             d = self._drag
             self._drag = None
@@ -286,6 +296,16 @@ class AdjustPage(ToolPage):
         self._full_timer.timeout.connect(lambda: self._render("full"))
         self.sliders: dict[str, ParamSlider] = {}
         self.add_output_buttons("用原尺寸輸出調整後的照片（Ctrl+S）")
+        self.stage.enable_zoom("隱藏聚光燈框線")
+        self.stage.hud.overlay.toggled.connect(lambda *_: self.stage.update())
+        # 放大到預覽圖不夠清楚時，停下來 0.25 秒就用原圖重算看得到的那一塊
+        self._detail_timer = QTimer(self)
+        self._detail_timer.setSingleShot(True)
+        self._detail_timer.setInterval(250)
+        self._detail_timer.timeout.connect(self._render_detail)
+        self._detail_token = None
+        self.stage.view_changed.connect(self._detail_timer.start)
+        self._relay.detail.connect(self._on_detail)
         self._build()
         dele = QShortcut(QKeySequence(Qt.Key.Key_Delete), self)
         dele.activated.connect(self.remove_spot)
@@ -487,6 +507,8 @@ class AdjustPage(ToolPage):
         return self.tabs.value() == "spot"
 
     def on_tab(self, key):
+        self.stage.hud.overlay.setVisible(key == "spot")
+        self.stage.place_overlays()
         self.stage.update()
 
     # ---------------------------------------------------------------- 參數
@@ -613,7 +635,8 @@ class AdjustPage(ToolPage):
         self._sync_all()
         self.stage.pix = QPixmap.fromImage(small)
         self.stage.original = self.stage.pix
-        self.stage.update()
+        self.stage.set_detail(None, None)
+        self.stage.reset_view()
         self.update_scopes(self.small, self.small)
         self._render_thumbs()
         self.set_status(f"{img.width()}×{img.height()}")
@@ -623,6 +646,7 @@ class AdjustPage(ToolPage):
         if self.small is None:
             return
         self.gen += 1
+        self.stage.set_detail(None, None)      # 舊的清晰區塊是舊參數算的
         if final:
             self._full_timer.stop()
             self._render("full")
@@ -656,8 +680,30 @@ class AdjustPage(ToolPage):
         if kind == "full":
             self._full_shown = gen
             self.update_scopes(out)
+            self._detail_timer.start()
         self.stage.pix = QPixmap.fromImage(rgb_to_qimage(out))
         self.stage.update()
+
+    # ---------------------------------------------------------------- 放大時的清晰區塊
+    def _render_detail(self):
+        req = self.detail_crop(self.full)
+        if req is None:
+            self.stage.set_detail(None, None)
+            return
+        token = self._detail_token = object()
+        gen, p, small = self.gen, _copy(self.p), self.small
+
+        def run():
+            rgb = qimage_to_rgb(req["img"])
+            out = D.render_region(rgb, p, D.prepare(small, p), req["W"], req["H"], req["x0"], req["y0"])
+            self._relay.detail.emit(token, gen, out, rgb, req["region"])
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_detail(self, token, gen, out, rgb, region):
+        if token is not self._detail_token or gen != self.gen:
+            return
+        self.stage.set_detail(QPixmap.fromImage(rgb_to_qimage(out)), region, QPixmap.fromImage(rgb_to_qimage(rgb)))
 
     # ---------------------------------------------------------------- 輸出
     def output_name(self):

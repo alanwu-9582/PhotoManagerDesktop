@@ -11,13 +11,15 @@
 from __future__ import annotations
 
 
+import math
 import os
 import re
 import threading
 
 from PySide6.QtCore import QEvent, QObject, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPixmap
-from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QFileDialog, QFrame, QLineEdit, QPlainTextEdit,
+from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QFileDialog, QFrame, QHBoxLayout, QLabel, QLineEdit,
+                               QPlainTextEdit,
                                QProgressBar, QScrollArea, QSplitter, QStackedWidget, QTextEdit, QVBoxLayout, QWidget)
 
 from .. import config
@@ -61,10 +63,53 @@ class LibraryPicker(Sheet):
         self.accept()
 
 
+MIN_ZOOM, MAX_ZOOM = 1.0, 8.0
+
+
+class StageHud(QWidget):
+    """照片區右下角的深色工具列（跟整理分類的一樣）：隱藏框線、符合視窗、縮放比例。"""
+
+    def __init__(self, parent, overlay_tip=None):
+        super().__init__(parent)
+        from ..ui.viewer import HudButton
+        self.overlay = HudButton("eye", overlay_tip or "", checkable=True) if overlay_tip else None
+        self.fit = HudButton("reset", "符合視窗（雙擊照片也可以）")
+        self.zoom = QLabel("100%")
+        self.zoom.setStyleSheet("color: white; font-weight: 600; padding: 0 6px; background: transparent;")
+        self.zoom.setFixedHeight(30)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(6, 4, 8, 4)
+        lay.setSpacing(2)
+        for w in (self.overlay, self.fit, self.zoom):
+            if w is not None:
+                lay.addWidget(w)
+        if self.overlay is not None:
+            self.overlay.toggled.connect(self._paint_eye)
+
+    def _paint_eye(self, hidden):
+        from ..ui import icons
+        self.overlay.setIcon(icons.icon("eye-off" if hidden else "eye", "#ffffff", 15))
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        path = theme.round_rect(QPainterPath(), r, 10)
+        p.fillPath(path, QColor(28, 28, 30, 215))
+        p.setPen(QColor(255, 255, 255, 30))
+        p.drawPath(path)
+        p.end()
+
+
 class Stage(QWidget):
-    """照片區：深色底、可以拖照片進來、空的時候點一下就是選照片。"""
+    """照片區：深色底、可以拖照片進來、空的時候點一下就是選照片。
+
+    enable_zoom() 之後跟整理分類的檢視一樣：滾輪以游標為中心縮放、放大後拖曳移動、雙擊切換放大 / 符合視窗。
+    放大到預覽圖的解析度不夠時，頁面可以用 set_detail() 補一塊原尺寸算好的清晰區塊，蓋在對應的位置上。
+    """
     dropped = Signal(str)
     clicked_empty = Signal()
+    view_changed = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -76,7 +121,140 @@ class Stage(QWidget):
         self.original: QPixmap | None = None   # 按住空白鍵時顯示的原圖（有設才有對照）
         self.comparing = False
         self.scopes: ScopesOverlay | None = None
+        self.pix: QPixmap | None = None
+        self.zoomable = False
+        self.hud: StageHud | None = None
+        self.z, self.vx, self.vy = 1.0, 0.0, 0.0     # 縮放（1 = 符合視窗）與平移（像素，相對於置中）
+        self._pan = None
+        self.detail = self.detail_orig = None         # (QPixmap, 正規化區域 QRectF)
         self.setMinimumSize(320, 260)
+
+    # ---------------------------------------------------------------- 縮放與平移
+    def enable_zoom(self, overlay_tip=None, zoom=True):
+        """右下角的工具列。zoom=False 就只留「隱藏框線」的眼睛，不能縮放。"""
+        self.zoomable = zoom
+        self.hud = StageHud(self, overlay_tip)
+        self.hud.fit.clicked.connect(self.reset_view)
+        self.hud.fit.setVisible(zoom)
+        self.hud.zoom.setVisible(zoom)
+        self.hud.hide()
+
+    @property
+    def overlay_visible(self):
+        """框線（聚光燈、對焦框）有沒有顯示；工具列的眼睛按下去就藏起來。"""
+        return not (self.hud and self.hud.overlay and self.hud.overlay.isChecked())
+
+    def base_rect(self) -> QRectF:
+        """符合視窗時照片的位置。"""
+        if not self.pix:
+            return QRectF()
+        pad = 18
+        k = min((self.width() - pad * 2) / self.pix.width(), (self.height() - pad * 2) / self.pix.height())
+        w, h = self.pix.width() * k, self.pix.height() * k
+        return QRectF((self.width() - w) / 2, (self.height() - h) / 2, w, h)
+
+    def image_rect(self) -> QRectF:
+        b = self.base_rect()
+        if b.isEmpty():
+            return b
+        w, h = b.width() * self.z, b.height() * self.z
+        return QRectF(self.width() / 2 + self.vx - w / 2, self.height() / 2 + self.vy - h / 2, w, h)
+
+    def _limit(self):
+        if self.z <= 1.001:
+            self.vx = self.vy = 0.0
+            return
+        b = self.base_rect()
+        mx = max(0.0, (b.width() * self.z - self.width()) / 2 + 18)
+        my = max(0.0, (b.height() * self.z - self.height()) / 2 + 18)
+        self.vx = min(max(self.vx, -mx), mx)
+        self.vy = min(max(self.vy, -my), my)
+
+    def zoom_at(self, factor, cx=None, cy=None):
+        before = self.z
+        after = min(max(before * factor, MIN_ZOOM), MAX_ZOOM)
+        if after == before:
+            return
+        ox = (cx if cx is not None else self.width() / 2) - self.width() / 2
+        oy = (cy if cy is not None else self.height() / 2) - self.height() / 2
+        k = after / before
+        self.z = after
+        self.vx = ox - (ox - self.vx) * k        # 游標底下那一點不動
+        self.vy = oy - (oy - self.vy) * k
+        self._view_changed()
+
+    def reset_view(self):
+        self.z, self.vx, self.vy = 1.0, 0.0, 0.0
+        self._view_changed()
+
+    def _view_changed(self):
+        self._limit()
+        if self.hud is not None:
+            self.hud.zoom.setText(f"{round(self.z * 100)}%")
+            self.hud.setVisible(not self.empty and self.pix is not None)
+            self.place_overlays()
+        self.update()
+        self.view_changed.emit()
+
+    def zoomed(self):
+        return self.zoomable and self.z > 1.001
+
+    def start_pan(self, pos):
+        self._pan = pos
+        self.setCursor(Qt.CursorShape.ClosedHandCursor)
+
+    def move_pan(self, pos):
+        d = pos - self._pan
+        self._pan = pos
+        self.vx += d.x()
+        self.vy += d.y()
+        self._view_changed()
+
+    def end_pan(self):
+        self._pan = None
+        self.setCursor(Qt.CursorShape.OpenHandCursor if self.zoomed() else Qt.CursorShape.ArrowCursor)
+
+    def wheelEvent(self, e):
+        if not self.zoomable or self.empty or not self.pix:
+            return super().wheelEvent(e)
+        dy = e.angleDelta().y() or e.pixelDelta().y()
+        self.zoom_at(math.exp(dy * 0.0016), e.position().x(), e.position().y())
+
+    def mouseDoubleClickEvent(self, e):
+        if not self.zoomable or self.empty or not self.pix:
+            return super().mouseDoubleClickEvent(e)
+        if self.zoomed():
+            self.reset_view()
+        else:
+            self.zoom_at(2.5, e.position().x(), e.position().y())
+
+    def set_detail(self, pix, region, original=None):
+        """放大時補上的清晰區塊：region 是正規化座標（0..1）的範圍。original 是同一塊的原圖（按空白鍵時用）。"""
+        self.detail = (pix, region) if pix is not None else None
+        self.detail_orig = (original, region) if original is not None else None
+        self.update()
+
+    def visible_region(self) -> QRectF:
+        """目前看得到的那一塊（正規化座標）。"""
+        r = self.image_rect()
+        if r.isEmpty():
+            return QRectF()
+        v = r.intersected(QRectF(self.rect()))
+        return QRectF((v.x() - r.x()) / r.width(), (v.y() - r.y()) / r.height(), v.width() / r.width(),
+                      v.height() / r.height())
+
+    def paint_photo(self, p: QPainter, pix: QPixmap):
+        """把照片畫在 image_rect；有清晰區塊就蓋在上面。"""
+        r = self.image_rect()
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        shown = self.shown_pix(pix)
+        p.drawPixmap(r, shown, QRectF(shown.rect()))
+        det = self.detail_orig if self.comparing else self.detail
+        if det is not None and self.zoomed():
+            dp, reg = det
+            target = QRectF(r.x() + reg.x() * r.width(), r.y() + reg.y() * r.height(), reg.width() * r.width(),
+                            reg.height() * r.height())
+            p.drawPixmap(target, dp, QRectF(dp.rect()))
 
     def shown_pix(self, pix):
         """按住空白鍵比對時換成原圖。"""
@@ -86,9 +264,14 @@ class Stage(QWidget):
         if self.scopes is not None:
             self.scopes.move(12, self.height() - self.scopes.height() - 12)
             self.scopes.raise_()
+        if self.hud is not None:
+            self.hud.adjustSize()
+            self.hud.move(self.width() - self.hud.width() - 12, self.height() - self.hud.height() - 12)
+            self.hud.raise_()
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
+        self._limit()
         self.place_overlays()
 
     def paint_placeholder(self, p: QPainter):
@@ -108,7 +291,10 @@ class Stage(QWidget):
         p.drawRoundedRect(QRectF(self.rect()), 12, 12)
         if self.empty:
             self.paint_placeholder(p)
+        p.save()
+        p.setClipPath(theme.round_rect(QPainterPath(), QRectF(self.rect()), 12))   # 放大後照片不超出圓角
         self.paint_content(p)
+        p.restore()
         if self.comparing and self.original is not None:
             tag = QRectF((self.width() - 64) / 2, 12, 64, 24)
             p.setPen(Qt.PenStyle.NoPen)
@@ -326,6 +512,37 @@ class ToolPage(Page):
         self.save_btn = button("儲存…", "primary", "download", save_tip, self.save)
         self.actions.addWidget(self.stash_btn)
         self.actions.addWidget(self.save_btn)
+
+    def detail_crop(self, full: QImage, pad=0):
+        """放大檢視時，從原圖裁出看得到的那一塊（縮成螢幕上的像素大小）。預覽圖已經夠清楚就回傳 None。
+
+        pad 是四周多留的原尺寸像素（模糊這種要看鄰居的效果才算得對）。回傳的 x0 / y0 / W / H 都是縮放後的座標。
+        """
+        st = self.stage
+        if full is None or st.pix is None or not st.zoomed():
+            return None
+        r = st.image_rect()
+        disp_w = r.width() * st.devicePixelRatioF()
+        if disp_w <= st.pix.width() * 1.05:
+            return None
+        FW, FH = full.width(), full.height()
+        k = min(1.0, disp_w / FW)
+        reg = st.visible_region()
+        x0 = max(0, int(reg.left() * FW) - pad)
+        y0 = max(0, int(reg.top() * FH) - pad)
+        x1 = min(FW, int(math.ceil(reg.right() * FW)) + pad)
+        y1 = min(FH, int(math.ceil(reg.bottom() * FH)) + pad)
+        if x1 - x0 < 2 or y1 - y0 < 2:
+            return None
+        from PySide6.QtCore import QRect
+        w, h = max(1, round((x1 - x0) * k)), max(1, round((y1 - y0) * k))
+        crop = full.copy(QRect(x0, y0, x1 - x0, y1 - y0)).scaled(
+            w, h, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        inner = (max(0, int(reg.left() * FW)), max(0, int(reg.top() * FH)),
+                 min(FW, int(math.ceil(reg.right() * FW))), min(FH, int(math.ceil(reg.bottom() * FH))))
+        return {"img": crop, "k": k, "x0": round(x0 * k), "y0": round(y0 * k), "W": max(1, round(FW * k)),
+                "H": max(1, round(FH * k)), "region": QRectF(x0 / FW, y0 / FH, (x1 - x0) / FW, (y1 - y0) / FH),
+                "full_px": (x0, y0, x1, y1), "inner_px": inner, "size": (FW, FH)}
 
     def panel_min_width(self) -> int:
         """設定欄至少要多寬才放得下：每個分頁都算（藏起來的也算），寬度才不會因為切分頁而改變。"""

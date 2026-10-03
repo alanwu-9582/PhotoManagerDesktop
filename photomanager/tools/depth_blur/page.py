@@ -23,6 +23,7 @@ from . import depth as D
 from . import model
 
 PREVIEW_EDGE = 1100
+DRAFT_EDGE = 480          # 拖曳 / 點對焦時先顯示的小圖
 BINS = 64
 F_STOPS = [1.2, 1.4, 1.8, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0]
 BLADES = [(0, "圓形"), (9, "9 葉"), (7, "7 葉"), (6, "6 葉"), (5, "5 葉"), (-1, "圓環")]
@@ -178,22 +179,12 @@ class BlurStage(Stage):
         self.busy = False
         self.setMouseTracking(True)
 
-    def image_rect(self) -> QRectF:
-        if not self.pix:
-            return QRectF()
-        pad = 18
-        k = min((self.width() - pad * 2) / self.pix.width(), (self.height() - pad * 2) / self.pix.height())
-        w, h = self.pix.width() * k, self.pix.height() * k
-        return QRectF((self.width() - w) / 2, (self.height() - h) / 2, w, h)
-
     def paint_content(self, p: QPainter):
         if not self.pix:
             return
         r = self.image_rect()
-        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        pix = self.shown_pix(self.pix)
-        p.drawPixmap(r, pix, QRectF(pix.rect()))
-        if self.marker is not None and not self.comparing:
+        self.paint_photo(p, self.pix)
+        if self.marker is not None and not self.comparing and self.overlay_visible:
             c = QPointF(r.x() + self.marker.x() * r.width(), r.y() + self.marker.y() * r.height())
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.setPen(QPen(QColor(0, 0, 0, 140), 3.5))
@@ -202,7 +193,7 @@ class BlurStage(Stage):
             p.drawRect(QRectF(c.x() - 14, c.y() - 14, 28, 28))
         if self.busy:
             p.setPen(Qt.PenStyle.NoPen)
-            tag = QRectF(r.right() - 92, r.y() + 10, 82, 24)
+            tag = QRectF(min(r.right(), self.width()) - 92, max(r.y(), 0) + 10, 82, 24)
             p.fillPath(theme.round_rect(QPainterPath(), tag, 6), QColor(0, 0, 0, 160))
             p.setPen(QColor("white"))
             p.setFont(theme.font("caption", 600))
@@ -216,6 +207,7 @@ class BlurStage(Stage):
             x = (e.position().x() - r.x()) / r.width()
             y = (e.position().y() - r.y()) / r.height()
             self.marker = QPointF(x, y)
+            self.update()
             self.focus_clicked.emit(x, y)
 
     def mouseMoveEvent(self, e):
@@ -232,6 +224,7 @@ class BlurStage(Stage):
 
 class _Relay(QObject):
     depth = Signal(object, object, str)       # token, depth array | None, 說明 / 錯誤
+    draft = Signal(object, object)            # token, 小圖的成品（先頂著，完整的預覽接著來）
     preview = Signal(object, object)          # token, rgb array
     download = Signal(int, int)
     download_done = Signal(object)            # error | None
@@ -262,6 +255,10 @@ class DepthBlurPage(ToolPage):
         self._timer.timeout.connect(self._render)
         self.stage.focus_clicked.connect(self.focus_at)
         self.add_output_buttons("用原尺寸輸出（Ctrl+S）")
+        self.stage.enable_zoom("隱藏對焦框", zoom=False)
+        self.stage.hud.overlay.toggled.connect(lambda *_: self.stage.update())
+        self._relay.draft.connect(self._on_draft)
+        self.draft = self.draft_depth = None
         self._build()
 
     def make_stage(self):
@@ -349,8 +346,12 @@ class DepthBlurPage(ToolPage):
         self.stage.marker = None
         self.stage.pix = QPixmap.fromImage(small)
         self.stage.original = self.stage.pix
+        self.stage.reset_view()
         self.update_scopes(self.small, self.small)
-        self.stage.update()
+        k = min(1.0, DRAFT_EDGE / max(small.width(), small.height()))
+        self.draft = qimage_to_rgb(small.scaled(max(1, round(small.width() * k)), max(1, round(small.height() * k)),
+                                                Qt.AspectRatioMode.IgnoreAspectRatio,
+                                                Qt.TransformationMode.SmoothTransformation))
         self.set_status(f"{img.width()}×{img.height()}")
         self.detect()
 
@@ -390,6 +391,7 @@ class DepthBlurPage(ToolPage):
             self.set_status(f'偵測失敗: {how}', "error")
             return
         self.depth = d
+        self.draft_depth = D.resize_f(d, self.draft.shape[1], self.draft.shape[0])
         self.method = how
         self._paint_method()
         # 預設對焦：畫面中間偏下那一塊（大部分照片的主體所在），範圍寬 0.22。
@@ -428,13 +430,27 @@ class DepthBlurPage(ToolPage):
         self.stage.busy = True
         self.stage.update()
 
+        draft, ddepth = self.draft, self.draft_depth
+        cancel = lambda: token is not self._render_token  # noqa: E731
+
         def run():
+            # 先用小圖算一張（約 0.1 秒）馬上顯示，再算預覽大小的那一張
+            if ddepth is not None:
+                amap = D.blur_amount_map(ddepth, lo, hi, feather, bg_only)
+                out = D.render(draft, amap, max_radius(fnum, max(draft.shape[:2])), blades=blades, bokeh=bokeh,
+                               cancel=cancel)
+                if not cancel():
+                    self._relay.draft.emit(token, out)
             amap = D.blur_amount_map(depth, lo, hi, feather, bg_only)
-            out = D.render(rgb, amap, max_radius(fnum, max(rgb.shape[:2])), blades=blades, bokeh=bokeh,
-                           cancel=lambda: token is not self._render_token)
+            out = D.render(rgb, amap, max_radius(fnum, max(rgb.shape[:2])), blades=blades, bokeh=bokeh, cancel=cancel)
             self._relay.preview.emit(token, out)
 
         threading.Thread(target=run, daemon=True).start()
+
+    def _on_draft(self, token, out):
+        if token is self._render_token and self.view.value() == "result":
+            self.stage.pix = QPixmap.fromImage(rgb_to_qimage(out))
+            self.stage.update()
 
     def _on_preview(self, token, out):
         if token is not self._render_token:

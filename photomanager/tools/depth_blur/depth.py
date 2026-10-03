@@ -19,6 +19,10 @@
 """
 from __future__ import annotations
 
+import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
 from PIL import Image
 
@@ -260,24 +264,37 @@ def render(rgb: np.ndarray, amount_map: np.ndarray, max_radius: float, levels=8,
     t = amount_map * levels
     lin *= np.clip(1 - t, 0, 1)[..., None]
     out = lin
-    for k in range(1, levels + 1):
+    lock = threading.Lock()
+    done = [0]
+
+    def level(k):
+        """第 k 層：縮小、跟光圈形狀做卷積、放大回來，加到 out（每層互相獨立，可以同時算）。"""
         if cancel and cancel():
-            return rgb
-        if on_progress:
-            on_progress(k, levels)
+            return
         hat = np.clip(1 - np.abs(t - k), 0, 1)
-        if not hat.any():
-            continue
-        r = max_radius * k / levels
-        f = max(1.0, r / LEVEL_KERNEL)
-        sw, sh = max(4, round(W / f)), max(4, round(H / f))
-        small = [_resize_f(a, sw, sh) for a in src] + [_resize_f(w, sw, sh)]
-        K = aperture_kernel(max(0.8, r / f), blades)
-        conv = _conv_fft(small, K)
-        den = np.maximum(_resize_f(conv[3], W, H), 1e-4)
-        scale = hat / den
-        for c in range(3):
-            out[..., c] += _resize_f(conv[c], W, H) * scale
+        if hat.any():
+            r = max_radius * k / levels
+            f = max(1.0, r / LEVEL_KERNEL)
+            sw, sh = max(4, round(W / f)), max(4, round(H / f))
+            small = [_resize_f(a, sw, sh) for a in src] + [_resize_f(w, sw, sh)]
+            conv = _conv_fft(small, aperture_kernel(max(0.8, r / f), blades))
+            scale = hat / np.maximum(_resize_f(conv[3], W, H), 1e-4)
+            layers = [_resize_f(conv[c], W, H) * scale for c in range(3)]
+            with lock:
+                for c in range(3):
+                    out[..., c] += layers[c]
+        with lock:
+            done[0] += 1
+            n = done[0]
+        if on_progress:
+            on_progress(n, levels)
+
+    # FFT 和縮放都會放掉 GIL，幾層一起算；同時最多幾層，原尺寸輸出時記憶體才不會爆
+    workers = max(1, min(4, (os.cpu_count() or 2) - 1))
+    with ThreadPoolExecutor(workers) as pool:
+        list(pool.map(level, range(1, levels + 1)))
+    if cancel and cancel():
+        return rgb
     # 推亮過的散景超過 1 的部分直接夾掉：亮點會是一顆實心、邊緣清楚的圓
     return np.clip(np.power(np.clip(out, 0, 1), 1 / 2.2) * 255 + 0.5, 0, 255).astype(np.uint8)
 
