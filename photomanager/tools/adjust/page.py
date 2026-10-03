@@ -421,8 +421,7 @@ class AdjustPage(ToolPage):
         self.pad.changed.connect(self._set_pad)
         self.pad.released.connect(self.settle)
         self.pad_info = label("", "secondary", wrap=True)
-        reset = button("回到中間", None, "reset", "色調、色彩回到中間", self.reset_pad)
-        side = vbox(self.pad_info, wrap(hbox(reset, None)), None, spacing=8)
+        side = vbox(self.pad_info, None, spacing=8)
         Y.addWidget(wrap(hbox(self.pad, side, spacing=14)))
         self.palette_slider = ParamSlider("色盤", 0, 100, 100, 1, 100, lambda v: f"{v:.0f}")
         self.palette_slider.changed.connect(lambda v: self._set_style_key("palette", v))
@@ -442,11 +441,6 @@ class AdjustPage(ToolPage):
         self.p["style"]["tone"], self.p["style"]["color"] = tone, color
         self._paint_pad_info()
         self.changed()
-
-    def reset_pad(self):
-        self.p["style"]["tone"] = self.p["style"]["color"] = 0.0
-        self._sync_style()
-        self.changed(final=True)
 
     def _set_style_key(self, key, v):
         self.p["style"][key] = v

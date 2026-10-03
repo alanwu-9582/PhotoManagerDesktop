@@ -239,23 +239,31 @@ class ToolPage(Page):
         area.setFrameShape(QFrame.Shape.NoFrame)
         area.setMinimumWidth(340)
         area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        # 捲軸的位置一直留著：切換分頁時內容長短不同，有沒有捲軸都不會讓寬度跳動。
+        # 不需要捲動時把手藏起來（idle），看起來就只是一條空白。
+        area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        sb = area.verticalScrollBar()
+
+        def idle(lo, hi):
+            sb.setProperty("idle", hi <= lo)
+            sb.style().unpolish(sb)
+            sb.style().polish(sb)
+
+        sb.rangeChanged.connect(idle)
+        idle(0, 0)
         self.scroll_area = area
         # 右欄最上面的分頁列（不跟著捲動）：ToolGroup 的工具切換、add_tabs 的設定分頁都放這裡
         right = QWidget()
         self.tab_slot = QVBoxLayout()
-        self.tab_slot.setContentsMargins(4, 0, 12, 0)
+        self.tab_slot.setContentsMargins(4, 0, 12 + sb.sizeHint().width(), 0)   # 右緣跟下面的設定對齊
         self.tab_slot.setSpacing(8)
         rl = QVBoxLayout(right)
         rl.setContentsMargins(0, 0, 0, 0)
         rl.setSpacing(10)
         rl.addLayout(self.tab_slot)
         rl.addWidget(area, 1)
-        # 下面的設定出現捲軸時，上面的分頁列也讓出捲軸的寬度，兩邊的右緣才對齊
-        sb = area.verticalScrollBar()
-        sb.rangeChanged.connect(lambda lo, hi: self.tab_slot.setContentsMargins(
-            4, 0, 12 + (sb.sizeHint().width() if hi > lo else 0), 0))
 
-        split = QSplitter(Qt.Orientation.Horizontal)
+        self.split = split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(left)
         split.addWidget(right)
         split.setStretchFactor(0, 3)
@@ -319,8 +327,20 @@ class ToolPage(Page):
         self.actions.addWidget(self.stash_btn)
         self.actions.addWidget(self.save_btn)
 
+    def panel_min_width(self) -> int:
+        """設定欄至少要多寬才放得下：每個分頁都算（藏起來的也算），寬度才不會因為切分頁而改變。"""
+        m = self.form.contentsMargins()
+        need = self.controls.minimumSizeHint().width()
+        for w in getattr(self, "tab_pages", {}).values():
+            need = max(need, w.minimumSizeHint().width() + m.left() + m.right())
+        return need + self.scroll_area.verticalScrollBar().sizeHint().width() + 2
+
+    def fit_panel(self, width=None):
+        self.scroll_area.setMinimumWidth(max(340, width or self.panel_min_width()))
+
     # ---------------------------------------------------------------- 空白鍵比對、照片參數
     def on_show(self):
+        self.fit_panel()
         if self._space is not None:
             QApplication.instance().installEventFilter(self._space)
         self._on_show_photo()
@@ -606,15 +626,26 @@ class ToolGroup(Page):
     def switch(self, key):
         if key == self.current:
             return
-        self.page().on_hide()
+        old = self.page()
+        old.on_hide()
         self.current = key
         for sw in self.switches:
             sw.setValue(key)
+        # 照片區與設定欄的分界跟著上一個工具走，切換時右欄寬度不會跳
+        self.page().split.setSizes(old.split.sizes())
         self.stack.setCurrentWidget(self.page())
         self.page().on_show()
+        self._fit()
 
     def on_show(self):
         self.page().on_show()
+        self._fit()
+
+    def _fit(self):
+        """群組裡的工具用同一個設定欄寬度（取最寬的那個），切換時不會跳。"""
+        w = max(p.panel_min_width() for p in self.pages.values())
+        for p in self.pages.values():
+            p.fit_panel(w)
 
     def on_hide(self):
         self.page().on_hide()

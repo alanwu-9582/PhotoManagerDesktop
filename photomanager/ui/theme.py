@@ -217,6 +217,7 @@ QScrollBar::handle:vertical {{ background: {t['fill_strong']}; border-radius: 1p
 QScrollBar::handle:vertical:hover {{ background: {t['tertiary']}; margin: 0; border-radius: 2px; }}
 QScrollBar:horizontal {{ background: transparent; height: 11px; margin: 2px; }}
 QScrollBar::handle:horizontal {{ background: {t['fill_strong']}; border-radius: 1px; min-width: 36px; margin: 2px 0; }}
+QScrollBar[idle="true"]::handle {{ background: transparent; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
 QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
 

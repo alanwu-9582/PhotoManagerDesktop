@@ -157,14 +157,24 @@ class Segmented(QWidget):
         self.update()
 
     def _widths(self):
-        fm = QFontMetrics(self.font())
+        """每一段一樣寬（以最長的那段為準；用粗體量，選中時字變粗也不會擠）。"""
+        f = self.font()
+        f.setWeight(theme.QFont.Weight.DemiBold)
+        fm = QFontMetrics(f)
         pad = 20 if self._compact else 26
-        return [fm.horizontalAdvance(lb) + pad for _, lb in self._options]
+        w = max((fm.horizontalAdvance(lb) for _, lb in self._options), default=0) + pad
+        return [w] * len(self._options)
 
     def sizeHint(self):
         return QSize(sum(self._widths()) + 4, self.height())
 
     def minimumSizeHint(self):
+        # 撐滿欄寬的版本可以縮到每段只留一點邊距（各段仍然一樣寬），兩個並排時才不會把欄位撐破
+        if self.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Expanding:
+            f = self.font()
+            f.setWeight(theme.QFont.Weight.DemiBold)
+            w = max((QFontMetrics(f).horizontalAdvance(lb) for _, lb in self._options), default=0) + 12
+            return QSize(w * len(self._options) + 4, self.height())
         return self.sizeHint()
 
     def _rects(self):

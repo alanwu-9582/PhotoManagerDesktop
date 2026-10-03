@@ -1,6 +1,6 @@
 Create a poster. Each uploaded photo should be treated as a separate standalone artwork; do not combine multiple photos into a collage.
 
-LOWER HALF — MODULAR GEOMETRIC DECONSTRUCTION
+MODULAR GEOMETRIC DECONSTRUCTION
 
 Extract the most recognizable elements of the original image, including the primary subject, silhouette, structural features, pose, spatial relationships, and narrative connections. Reconstruct them as a block-based, modular geometric deconstruction illustration.
 

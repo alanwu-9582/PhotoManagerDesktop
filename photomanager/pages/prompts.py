@@ -1,24 +1,91 @@
 """AI 風格提示詞：把照片轉成各種風格的提示詞，挑一個、一鍵複製，貼到 AI 生圖工具裡用。
 
-提示詞放在 assets/prompts/（見 engine/prompts.py）：每個提示詞一個資料夾，裡面是 prompt.txt 和參考結果圖。
-左邊是卡片（有參考圖就顯示第一張），右邊是選到的那一個：參考圖、全文、複製。
+內建的提示詞在 assets/prompts/，在這裡上傳的放在設定資料夾（見 engine/prompts.py）。
+左邊是卡片（有參考圖就顯示第一張），右邊是選到的那一個：參考圖、全文、複製；
+「上傳提示詞」新增一個，「上傳參考圖」幫選到的那個加參考圖，上傳的提示詞可以刪除。
 """
 from __future__ import annotations
 
 
 from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QFontMetrics, QGuiApplication, QImageReader, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import (QAbstractButton, QFrame, QLineEdit, QPlainTextEdit, QSplitter, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractButton, QFileDialog, QFrame, QLineEdit, QPlainTextEdit, QSplitter, QVBoxLayout,
+                               QWidget)
 
 from ..engine import prompts as P
 from ..ui import icons, theme
-from ..ui.dialogs import scroll
-from ..ui.widgets import EmptyState, FlowLayout, button, hbox, label, notify, wrap
+from ..ui import dialogs
+from ..ui.dialogs import Sheet, scroll
+from ..ui.widgets import EmptyState, FlowLayout, button, field, hbox, icon_button, label, notify, wrap
 from .base import Page
 
 TAG_NAMES = {"poster": "海報", "collage": "拼貼", "geometric": "幾何", "paper": "紙張",
              "watercolor": "水彩", "grid": "方格"}
 LANG_NAMES = {"en": "英文", "zh-Hant": "中文"}
+IMAGE_FILTER = "圖片 (*.jpg *.jpeg *.png *.webp *.heic *.heif *.avif *.bmp *.gif)"
+
+
+def tag_line(pr, sep):
+    parts = [LANG_NAMES.get(pr.language, pr.language)] + [TAG_NAMES.get(t, t) for t in pr.tags]
+    return sep.join(x for x in parts if x)
+
+
+class UploadDialog(Sheet):
+    """上傳一個新的提示詞：標題、標籤、本文（貼上或讀 .txt）、參考圖。"""
+
+    def __init__(self, parent):
+        super().__init__(parent, "上傳提示詞", width=560, height=560)
+        self.title = QLineEdit()
+        self.title.setPlaceholderText("標題")
+        self.tags = QLineEdit()
+        self.tags.setPlaceholderText("標籤，用逗號分開")
+        self.text = QPlainTextEdit()
+        self.text.setPlaceholderText("貼上提示詞，或從 .txt 讀取")
+        self.images: list[str] = []
+        self.img_label = label("", "secondary")
+        load_txt = button("從 .txt 讀取…", None, "upload", on_click=self.load_txt)
+        pick = button("選擇參考圖…", None, "image", on_click=self.pick_images)
+        self.body.addWidget(field("標題", self.title))
+        self.body.addWidget(field("標籤", self.tags))
+        self.body.addWidget(field("提示詞", self.text), 1)
+        self.body.addWidget(wrap(hbox(load_txt, pick, self.img_label, None, spacing=8)))
+        self.ok = button("上傳", "primary", on_click=self.accept)
+        self.ok.setDefault(True)
+        self.add_footer(button("取消", on_click=self.reject), self.ok)
+        self.text.textChanged.connect(self._sync)
+        self._sync()
+
+    def _sync(self):
+        self.ok.setEnabled(bool(self.text.toPlainText().strip()))
+        self.img_label.setText(f"{len(self.images)} 張參考圖" if self.images else "")
+
+    def load_txt(self):
+        path, _ = QFileDialog.getOpenFileName(self, "選擇提示詞檔", "", "文字檔 (*.txt *.md);;所有檔案 (*)")
+        if not path:
+            return
+        try:
+            raw = open(path, "rb").read()
+            try:
+                text = raw.decode("utf-8-sig")
+            except UnicodeDecodeError:
+                text = raw.decode("cp950", errors="replace")      # 舊的 Big5 文字檔
+        except OSError as e:
+            dialogs.alert(self, "讀取失敗", str(e), tone="danger")
+            return
+        self.text.setPlainText(text)
+        if not self.title.text().strip():
+            import os
+            self.title.setText(os.path.splitext(os.path.basename(path))[0])
+
+    def pick_images(self):
+        paths, _ = QFileDialog.getOpenFileNames(self, "選擇參考圖", "", IMAGE_FILTER)
+        if paths:
+            self.images = paths
+            self._sync()
+
+    def values(self):
+        tags = [t.strip() for t in self.tags.text().replace("，", ",").split(",")]
+        return self.title.text(), self.text.toPlainText(), tags, self.images
 
 
 def load_thumb(path, edge) -> QPixmap:
@@ -89,8 +156,7 @@ class PromptCard(QAbstractButton):
         f = theme.font("caption")
         p.setFont(f)
         p.setPen(theme.c("secondary"))
-        tags = " · ".join([LANG_NAMES.get(self.prompt.language, self.prompt.language)] +
-                          [TAG_NAMES.get(t, t) for t in self.prompt.tags])
+        tags = tag_line(self.prompt, " · ")
         p.drawText(QRectF(x, y + 24, w, 16), Qt.AlignmentFlag.AlignVCenter,
                    QFontMetrics(f).elidedText(tags, Qt.TextElideMode.ElideRight, int(w)))
         p.end()
@@ -128,6 +194,7 @@ class PromptsPage(Page):
         self.search.textChanged.connect(self._filter)
         self.count = label("", "secondary")
         for w in (self.search, self.count, None,
+                  button("上傳提示詞…", "primary", "upload", "新增一個提示詞（可以附參考圖）", self.upload),
                   button("重新整理", None, "refresh", "重新讀取提示詞資料夾（加了參考圖之後按這裡）", self.reload),
                   button("開啟提示詞資料夾", None, "folder", str(P.PROMPT_DIR), lambda: P.open_folder(P.PROMPT_DIR))):
             if w is None:
@@ -154,11 +221,14 @@ class PromptsPage(Page):
         self.text.setFont(theme.font("callout"))
         self.copy_btn = button("複製提示詞", "primary", "copy", "複製全文，貼到 AI 生圖工具裡", self.copy)
         self.folder_btn = button("開啟這個資料夾", None, "folder", "放參考結果圖的地方", self.open_current)
+        self.add_img_btn = button("上傳參考圖…", None, "image", "幫這個提示詞加參考結果圖", self.upload_images)
+        self.delete_btn = icon_button("trash", "刪除這個提示詞", self.delete_current, size=15)
         self.chars = label("", "caption")
         for w in (self.d_title, self.d_meta, self.d_desc, self.thumbs_host):
             d.addWidget(w)
         d.addWidget(self.text, 1)
-        d.addWidget(wrap(hbox(self.chars, None, self.folder_btn, self.copy_btn, spacing=8)))
+        d.addWidget(wrap(hbox(self.chars, None, self.delete_btn, self.folder_btn, self.add_img_btn, self.copy_btn,
+                              spacing=8)))
 
         self.split = QSplitter(Qt.Orientation.Horizontal)
         self.split.addWidget(self.cards_area)
@@ -215,9 +285,11 @@ class PromptsPage(Page):
         for c in self.cards:
             c.setChecked(c.prompt.id == pr.id)
         self.d_title.setText(pr.title)
-        tags = "、".join(TAG_NAMES.get(t, t) for t in pr.tags)
-        self.d_meta.setText(f'語言：{LANG_NAMES.get(pr.language, pr.language or "—")}　標籤：{tags or "—"}')
+        self.d_meta.setText(tag_line(pr, "　·　") + ("　·　已上傳" if pr.user else ""))
+        self.d_meta.setVisible(bool(self.d_meta.text()))
         self.d_desc.setText(pr.description)
+        self.d_desc.setVisible(bool(pr.description))
+        self.delete_btn.setVisible(pr.user)
         self.thumbs.clear()
         self.thumbs_host.setVisible(bool(pr.thumbnails))
         if pr.thumbnails:
@@ -236,4 +308,49 @@ class PromptsPage(Page):
 
     def open_current(self):
         if self.current:
-            P.open_folder(self.current.folder)
+            # 內建的提示詞：有上傳過參考圖就開放那些圖的資料夾，不然開內建的資料夾
+            target = self.current.image_dir if self.current.image_dir.exists() and not self.current.user else self.current.folder
+            P.open_folder(target)
+
+    def upload(self):
+        dlg = UploadDialog(self.win)
+        if not dlg.exec():
+            return
+        title, text, tags, images = dlg.values()
+        try:
+            pid = P.add_prompt(title, text, tags, images)
+        except OSError as e:
+            dialogs.alert(self.win, "上傳失敗", str(e), tone="danger")
+            return
+        self.current = None
+        self.reload()
+        card = next((c for c in self.cards if c.prompt.id == pid), None)
+        if card:
+            self.select(card.prompt)
+        notify(f"已上傳「{card.prompt.title if card else title}」", "success")
+
+    def upload_images(self):
+        if not self.current:
+            return
+        paths, _ = QFileDialog.getOpenFileNames(self.win, "選擇參考圖", "", IMAGE_FILTER)
+        if not paths:
+            return
+        try:
+            n = P.add_images(self.current, paths)
+        except OSError as e:
+            dialogs.alert(self.win, "上傳失敗", str(e), tone="danger")
+            return
+        self.reload()
+        notify(f"已加入 {n} 張參考圖", "success")
+
+    def delete_current(self):
+        pr = self.current
+        if not pr or not pr.user:
+            return
+        if not dialogs.confirm(self.win, f"刪除「{pr.title}」？", "提示詞與它的參考圖都會刪除。", tone="danger",
+                               confirm_text="刪除"):
+            return
+        P.delete_prompt(pr)
+        self.current = None
+        self.reload()
+        notify("已刪除", "success")
