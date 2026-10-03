@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "prompts": [
+    {
+      "id": "geometric-collage-poster",
+      "folder": "geometric-collage-poster",
+      "file": "prompt.txt",
+      "title": {"zh-Hant": "模組化幾何拼貼海報", "en": "Modular Geometric Collage Poster"},
+      "description": {
+        "zh-Hant": "把照片的主體拆解成大塊、完整的幾何色塊，像剪紙拼貼；柔和的配色、細微紙紋、大量留白與少量雜誌式文字。",
+        "en": "Rebuilds the subject from large, complete geometric shapes like cut-paper collage, with a soft palette, subtle paper grain, generous negative space and minimal editorial type."
+      },
+      "tags": ["poster", "collage", "geometric", "paper"],
+      "language": "en",
+      "thumbnails": []
+    },
+    {
+      "id": "watercolor-grid-collage",
+      "folder": "watercolor-grid-collage",
+      "file": "prompt.txt",
+      "title": {"zh-Hant": "攝影 × 水彩方格拼貼", "en": "Photo × Watercolor Grid Collage"},
+      "description": {
+        "zh-Hant": "用數百枚水彩紙小方格重構照片主體，邊緣逐漸消散；暖白水彩紙背景、灰藍手寫短句，清新明亮。",
+        "en": "Reconstructs the subject from hundreds of small watercolor-paper squares that dissolve toward the edges, on warm white paper with a short blue-gray handwritten line."
+      },
+      "tags": ["poster", "collage", "watercolor", "grid"],
+      "language": "zh-Hant",
+      "thumbnails": []
+    }
+  ]
+}

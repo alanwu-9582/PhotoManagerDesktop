@@ -34,6 +34,7 @@ def _routes():
     from .tools.adjust.page import AdjustPage
     from .tools.frames import FramesPage
     from .tools.depth_blur.page import DepthBlurPage
+    from .pages.prompts import PromptsPage
     return {
         "photos": {"label": tr("照片檢視"), "icon": "image", "group": tr("照片管理"), "page": PhotosPage},
         "stats": {"label": tr("統計數據"), "icon": "chart", "group": tr("照片管理"), "page": StatsPage},
@@ -44,6 +45,9 @@ def _routes():
         "adjust": {"label": tr("調整"), "icon": "adjust", "group": tr("照片編輯"), "page": AdjustPage},
         "blur": {"label": tr("景深模糊"), "icon": "aperture", "group": tr("照片編輯"), "page": DepthBlurPage},
         "frame": {"label": tr("相框與色卡"), "icon": "frame", "group": tr("照片編輯"), "page": FramesPage},
+        # 不是編輯照片的工具（不吃照片），所以不會出現在「用編輯工具開啟」的選單裡
+        "prompts": {"label": tr("AI 風格提示詞"), "icon": "sparkle", "group": tr("照片編輯"), "page": PromptsPage,
+                    "photo_tool": False},
         "settings": {"label": tr("設定"), "icon": "sliders", "group": tr("其他"), "page": SettingsPage},
     }
 
@@ -140,7 +144,7 @@ class MainWindow(QMainWindow):
         return self.pages.get(self.current)
 
     def edit_routes(self):
-        return [(k, r) for k, r in self.routes.items() if r["group"] == tr("照片編輯")]
+        return [(k, r) for k, r in self.routes.items() if r["group"] == tr("照片編輯") and r.get("photo_tool", True)]
 
     def open_in_tool(self, key, photo):
         """把這張設成「目前編輯中的照片」，再換到那個工具。"""
