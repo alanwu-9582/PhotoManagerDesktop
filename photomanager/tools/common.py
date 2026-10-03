@@ -10,13 +10,12 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr
 
 import os
 import re
 import threading
 
-from PySide6.QtCore import QEvent, QObject, QRectF, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (QAbstractSpinBox, QApplication, QFileDialog, QFrame, QLineEdit, QPlainTextEdit,
                                QProgressBar, QScrollArea, QSplitter, QStackedWidget, QTextEdit, QVBoxLayout, QWidget)
@@ -34,7 +33,7 @@ from ..ui.scopes import ScopesOverlay
 from ..ui.widgets import Segmented, button, hbox, label, notify, vbox
 from ..pages.base import Page
 
-IMAGE_FILTER = tr("圖片 (*.jpg *.jpeg *.png *.tif *.tiff *.heic *.heif *.webp *.bmp *.avif)")
+IMAGE_FILTER = "圖片 (*.jpg *.jpeg *.png *.tif *.tiff *.heic *.heif *.webp *.bmp *.avif)"
 
 
 def safe_name(name: str) -> str:
@@ -46,7 +45,7 @@ class LibraryPicker(Sheet):
     """已載入的照片。網頁版一次最多列 240 張；這裡是虛擬捲動，全部都能挑。"""
 
     def __init__(self, parent):
-        super().__init__(parent, tr('已載入的照片（{0:,}）').format(len(library.photos)), width=820, height=600)
+        super().__init__(parent, f'已載入的照片（{len(library.photos):,}）', width=820, height=600)
         self.choice = None
         self.grid = PhotoGrid("thumb", 6)
         self.grid.set_photos(library.photos)
@@ -55,7 +54,7 @@ class LibraryPicker(Sheet):
             self.grid.delegate.selected_id = state.selected_id
             self.grid.scroll_to_photo(state.selected_id, center=True)
         self.body.addWidget(self.grid, 1)
-        self.add_footer(button(tr("取消"), on_click=self.reject))
+        self.add_footer(button("取消", on_click=self.reject))
 
     def _pick(self, photo):
         self.choice = photo
@@ -96,10 +95,10 @@ class Stage(QWidget):
         p.setPen(QColor(255, 255, 255, 150))
         p.setFont(theme.font("title3", 600))
         r = QRectF(self.rect())
-        p.drawText(r.adjusted(0, -12, 0, -12), Qt.AlignmentFlag.AlignCenter, tr("選擇照片"))
+        p.drawText(r.adjusted(0, -12, 0, -12), Qt.AlignmentFlag.AlignCenter, "選擇照片")
         p.setFont(theme.font("callout"))
         p.setPen(QColor(255, 255, 255, 100))
-        p.drawText(r.adjusted(0, 26, 0, 26), Qt.AlignmentFlag.AlignCenter, tr("點這裡，或把照片拖進來"))
+        p.drawText(r.adjusted(0, 26, 0, 26), Qt.AlignmentFlag.AlignCenter, "點這裡，或把照片拖進來")
 
     def paintEvent(self, e):
         p = QPainter(self)
@@ -116,7 +115,7 @@ class Stage(QWidget):
             p.fillPath(theme.round_rect(QPainterPath(), tag, 6), QColor(0, 0, 0, 170))
             p.setPen(QColor("white"))
             p.setFont(theme.font("caption", 600))
-            p.drawText(tag, Qt.AlignmentFlag.AlignCenter, tr("原圖"))
+            p.drawText(tag, Qt.AlignmentFlag.AlignCenter, "原圖")
         if self._over:
             pen = p.pen()
             pen.setStyle(Qt.PenStyle.DashLine)
@@ -153,7 +152,7 @@ class Stage(QWidget):
                 e.acceptProposedAction()
                 self.dropped.emit(path)
                 return
-        notify(tr("不是圖片檔"), "warning")
+        notify("不是圖片檔", "warning")
 
 
 class _Loader(QObject):
@@ -207,12 +206,12 @@ class ToolPage(Page):
         self.meta = QWidget()
         self.meta_lay = hbox(self.status, None, spacing=8)
         self.meta.setLayout(self.meta_lay)
-        pick = hbox(button(tr("選擇照片"), None, "upload", tr("從檔案選一張（Ctrl+O）"), self.choose_file),
-                    button(tr("已載入的照片"), None, "image", tr("從目前這批照片裡挑一張"), self.choose_library),
+        pick = hbox(button("選擇照片", None, "upload", "從檔案選一張（Ctrl+O）", self.choose_file),
+                    button("已載入的照片", None, "image", "從目前這批照片裡挑一張", self.choose_library),
                     None, spacing=8)
         # 目前這張是別的工具剛存下來的結果時，照片區上面會出現這一條，可以一鍵換回原圖。
         self.result_note = label("", "caption")
-        self.revert_btn = button(tr("改回原圖"), "plain", "reset", tr("不要用上一個工具的結果，回到原本的照片"), self.revert)
+        self.revert_btn = button("改回原圖", "plain", "reset", "不要用上一個工具的結果，回到原本的照片", self.revert)
         self.result_bar = QWidget()
         self.result_bar.setLayout(hbox(self.result_note, None, self.revert_btn, spacing=6))
         self.result_bar.hide()
@@ -251,6 +250,10 @@ class ToolPage(Page):
         rl.setSpacing(10)
         rl.addLayout(self.tab_slot)
         rl.addWidget(area, 1)
+        # 下面的設定出現捲軸時，上面的分頁列也讓出捲軸的寬度，兩邊的右緣才對齊
+        sb = area.verticalScrollBar()
+        sb.rangeChanged.connect(lambda lo, hi: self.tab_slot.setContentsMargins(
+            4, 0, 12 + (sb.sizeHint().width() if hi > lo else 0), 0))
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(left)
@@ -283,7 +286,7 @@ class ToolPage(Page):
     def add_tabs(self, options, value=None):
         """右欄分頁：回傳 {key: 那一頁的 QVBoxLayout}。分頁列固定在上面，內容在下面捲動。"""
         self.tabs = Segmented(options, value or options[0][0])
-        self.tab_slot.addWidget(self.tabs, 0, Qt.AlignmentFlag.AlignLeft)
+        self.tab_slot.addWidget(self.tabs)
         self.tab_pages = {}
         out = {}
         for key, _ in options:
@@ -310,9 +313,9 @@ class ToolPage(Page):
 
     def add_output_buttons(self, save_tip):
         """「暫存」與「儲存…」兩顆按鈕。"""
-        self.stash_btn = button(tr("暫存"), None, "layers",
-                                tr("把目前的結果留著（不存檔），切到其他編輯工具會接著編輯（Ctrl+Shift+S）"), self.stash)
-        self.save_btn = button(tr("儲存…"), "primary", "download", save_tip, self.save)
+        self.stash_btn = button("暫存", None, "layers",
+                                "把目前的結果留著（不存檔），切到其他編輯工具會接著編輯（Ctrl+Shift+S）", self.stash)
+        self.save_btn = button("儲存…", "primary", "download", save_tip, self.save)
         self.actions.addWidget(self.stash_btn)
         self.actions.addWidget(self.save_btn)
 
@@ -348,7 +351,7 @@ class ToolPage(Page):
             return
         cmp_ = self.stage.comparing and self._scope_orig is not None
         sc.set_image(self._scope_orig if cmp_ else self._scope_result, self._exif_lines,
-                     tr("原圖") if cmp_ else "")
+                     "原圖" if cmp_ else "")
 
     def _read_exif_lines(self):
         try:
@@ -356,21 +359,21 @@ class ToolPage(Page):
         except Exception:  # noqa: BLE001
             info = None
         i = info or {}
-        lines = [(lb, i.get(k)) for k, lb in (("fNumber", tr("光圈")), ("exposureTime", tr("快門")), ("iso", "ISO"),
-                                               ("focalLength", tr("焦段")), ("exposureBias", tr("曝光補償")),
-                                               ("model", tr("相機")))]
+        lines = [(lb, i.get(k)) for k, lb in (("fNumber", "光圈"), ("exposureTime", "快門"), ("iso", "ISO"),
+                                               ("focalLength", "焦段"), ("exposureBias", "曝光補償"),
+                                               ("model", "相機"))]
         self._exif_lines = [(k, str(v)) for k, v in lines if v not in (None, "")]
 
     # ---------------------------------------------------------------- 來源
     def choose_file(self):
         start = os.path.dirname(self.path) if self.path else (library.root or config.settings.get("lastFolder") or "")
-        path, _ = QFileDialog.getOpenFileName(self.win, tr("選擇照片"), start, IMAGE_FILTER)
+        path, _ = QFileDialog.getOpenFileName(self.win, "選擇照片", start, IMAGE_FILTER)
         if path:
             self.take(path, None)
 
     def choose_library(self):
         if not library.photos:
-            notify(tr("尚未載入照片"))
+            notify("尚未載入照片")
             return
         dlg = LibraryPicker(self.win)
         if dlg.exec() and dlg.choice:
@@ -378,7 +381,7 @@ class ToolPage(Page):
 
     def take(self, path, photo_id):
         if not imgmod.is_image_file(path):
-            notify(tr("不是圖片檔"), "warning")
+            notify("不是圖片檔", "warning")
             return
         # 編輯工具的選圖只在編輯工具之間同步；整理分類的選取維持單向來源。
         state.set_editor_photo(path, photo_id)
@@ -402,13 +405,13 @@ class ToolPage(Page):
     def load(self, path, photo_id, image: QImage | None = None, origin=None, source=None, stashed=False):
         """解碼在背景做；兩千萬畫素的原圖解一次要好幾百毫秒，不能卡住介面。
         image 有給就是別的工具留下的結果（在記憶體裡，品質沒有被 JPEG 再壓一次），直接用。"""
-        self.set_status(tr("讀取中…"))
+        self.set_status("讀取中…")
         token = self._token = object()
         self.path = path
         self.origin = origin or path
         self.photo_id = photo_id
         self.from_result = bool(source)
-        note = tr('正在編輯「{0}」暫存的結果') if stashed else tr('正在編輯「{0}」的結果')
+        note = '正在編輯「{0}」暫存的結果' if stashed else '正在編輯「{0}」的結果'
         self.result_note.setText(note.format(source) if source else "")
         self.result_bar.setVisible(bool(source))
         if image is not None:
@@ -433,7 +436,7 @@ class ToolPage(Page):
         if token is not self._token:
             return
         if error is not None or img is None or img.isNull():
-            self.set_status(tr('讀取失敗: {0}').format(error), "error")
+            self.set_status(f'讀取失敗: {error}', "error")
             return
         if img.format() not in (QImage.Format.Format_ARGB32_Premultiplied, QImage.Format.Format_RGB32):
             img = img.convertToFormat(QImage.Format.Format_ARGB32_Premultiplied if img.hasAlphaChannel()
@@ -467,7 +470,7 @@ class ToolPage(Page):
     def save(self):
         job = self.output_job()
         if job is None:
-            notify(tr("還沒有照片"), "warning")
+            notify("還沒有照片", "warning")
             return
         path = self.ask_save(self.output_name(), png_only=self.png_only)
         if path:
@@ -477,7 +480,7 @@ class ToolPage(Page):
         """原尺寸算一次、留在記憶體裡，不寫檔。"""
         job = self.output_job()
         if job is None:
-            notify(tr("還沒有照片"), "warning")
+            notify("還沒有照片", "warning")
             return
         self.export(None, job, buttons=self._out_buttons())
 
@@ -490,26 +493,37 @@ class ToolPage(Page):
         做好之後，這張結果會變成「目前的照片」—— 換到別的編輯工具時就接著編輯它。
         """
         if self._export_token is not None:
-            notify(tr("還在輸出上一張"), "warning")
+            notify("還在輸出上一張", "warning")
             return
         token = self._export_token = object()
         self._export_path = path
         self._export_buttons = [b for b in buttons if b is not None]
         for b in self._export_buttons:
             b.setEnabled(False)
-        self._on_export_progress(token, 0.0, tr("準備中"))
-        emit = self._loader.export_progress.emit
+        self._on_export_progress(token, 0.0, "準備中")
+        loader = self._loader
+
+        def emit(*a):
+            # 輸出途中就把程式關了：頁面已經不在，訊號送不出去也沒關係（檔案照樣寫完）
+            try:
+                loader.export_progress.emit(*a)
+            except RuntimeError:
+                pass
 
         def run():
             try:
                 img = job(lambda f, text: emit(token, float(f), text))
                 if path:
-                    emit(token, 0.9, tr("寫入檔案"))
+                    emit(token, 0.9, "寫入檔案")
                     imgmod.save_image(img, path, quality)
-                emit(token, 1.0, tr("完成"))
-                self._loader.export_done.emit(token, path, img, None)
+                emit(token, 1.0, "完成")
+                result = (img, None)
             except Exception as e:  # noqa: BLE001
-                self._loader.export_done.emit(token, path, None, e)
+                result = (None, e)
+            try:
+                loader.export_done.emit(token, path, *result)
+            except RuntimeError:
+                pass
 
         threading.Thread(target=run, daemon=True).start()
 
@@ -519,10 +533,10 @@ class ToolPage(Page):
         pct = round(frac * 100)
         self.progress.setValue(round(frac * 1000))
         self.progress.show()
-        self.progress_label.setText((tr('暫存中：{0}… {1}%') if self._export_path is None else
-                                     tr('輸出中：{0}… {1}%')).format(text, pct))
+        self.progress_label.setText(('暫存中：{0}… {1}%' if self._export_path is None else
+                                     '輸出中：{0}… {1}%').format(text, pct))
         self.progress_label.show()
-        library.progress.emit(pct, 100, tr('{0}輸出').format(self.title))
+        library.progress.emit(pct, 100, f'{self.title}輸出')
 
     def _on_export_done(self, token, path, img, error):
         if token is not self._export_token:
@@ -534,29 +548,29 @@ class ToolPage(Page):
         self.progress_label.hide()
         library.progress_done.emit()
         if error is not None or img is None:
-            self.set_status(tr('輸出失敗: {0}').format(error), "error")
+            self.set_status(f'輸出失敗: {error}', "error")
             return
         if path is None:
-            self.set_status(tr('已暫存 {0}×{1}').format(img.width(), img.height()))
+            self.set_status(f'已暫存 {img.width()}×{img.height()}')
             state.set_editor_photo(self.path, self.photo_id, image=img, origin=self.origin, source=self.title,
                                    stashed=True)
             self._loaded_version = state.editor_version
-            notify(tr("已暫存；切到其他編輯工具會接著用這張"), "success")
+            notify("已暫存；切到其他編輯工具會接著用這張", "success")
             return
-        self.set_status(tr('已儲存 {0}×{1} · {2}').format(img.width(), img.height(), os.path.basename(path)))
+        self.set_status(f'已儲存 {img.width()}×{img.height()} · {os.path.basename(path)}')
         # 暫存結果：其他編輯工具會拿它接著編輯。自己這一頁不重新載入，設定照樣留著可以再調。
         state.set_editor_photo(path, self.photo_id, image=img, origin=self.origin, source=self.title)
         history.add("export", f"{self.title}：{os.path.basename(path)}",
                     [(os.path.basename(self.origin or path), f"→ {path}（{img.width()}×{img.height()}）")])
         self._loaded_version = state.editor_version
-        notify(tr("已儲存；切到其他編輯工具會接著用這張"), "success")
+        notify("已儲存；切到其他編輯工具會接著用這張", "success")
 
     def ask_save(self, default_name: str, png_only=False):
         start = os.path.dirname(self.path) if self.path else ""
         filt = "PNG (*.png)" if png_only else "JPEG (*.jpg);;PNG (*.png)"
         if not png_only and default_name.lower().endswith(".png"):
             filt = "PNG (*.png);;JPEG (*.jpg)"
-        path, _ = QFileDialog.getSaveFileName(self.win, tr("儲存"), os.path.join(start, default_name), filt)
+        path, _ = QFileDialog.getSaveFileName(self.win, "儲存", os.path.join(start, default_name), filt)
         return path or None
 
 
@@ -580,7 +594,7 @@ class ToolGroup(Page):
             page = cls(window)
             sw = Segmented(options, key)
             sw.changed.connect(self.switch)
-            page.tab_slot.insertWidget(0, sw, 0, Qt.AlignmentFlag.AlignLeft)
+            page.tab_slot.insertWidget(0, sw)
             self.switches.append(sw)
             self.pages[key] = page
             self.stack.addWidget(page)

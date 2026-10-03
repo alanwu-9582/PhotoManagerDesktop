@@ -74,7 +74,6 @@ PhotoManagerDesktop/
    ├─ state.py              # 跨頁狀態
    ├─ filters.py            # 照片篩選條件
    ├─ grouping.py           # 照片分組邏輯
-   ├─ i18n.py               # 多語系處理
    ├─ engine/               # EXIF、影像解碼、照片庫、分類與檔案操作
    ├─ pages/                # 照片、統計、整理、改名與設定頁面
    ├─ tools/                # 編輯工具：common.py（共用外框、暫存、分頁、ToolGroup）、photo_edit、adjust、depth_blur、frames（exif_frame + palette_card）

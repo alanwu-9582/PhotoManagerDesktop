@@ -9,7 +9,6 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr
 
 import json
 import random
@@ -22,12 +21,12 @@ from PySide6.QtCore import QObject, Signal
 from .. import config
 
 ACTIONS = ["move", "copy", "keep"]
-ACTION_LABEL = {"move": tr("移動"), "copy": tr("複製"), "keep": tr("只標記")}
-TRASH = {"key": "q", "name": tr("廢片"), "folder": "_廢片", "color": "#ff8080", "action": "move", "isTrash": True}
+ACTION_LABEL = {"move": "移動", "copy": "複製", "keep": "只標記"}
+TRASH = {"key": "q", "name": "廢片", "folder": "_廢片", "color": "#ff8080", "action": "move", "isTrash": True}
 FALLBACK = [
-    {"key": "1", "name": tr("機器人特寫"), "color": "#87d1ff", "action": "move"},
-    {"key": "2", "name": tr("賽場動態"), "color": "#7dff95", "action": "move"},
-    {"key": "3", "name": tr("團隊合照"), "color": "#ffbc5e", "action": "move"},
+    {"key": "1", "name": "機器人特寫", "color": "#87d1ff", "action": "move"},
+    {"key": "2", "name": "賽場動態", "color": "#7dff95", "action": "move"},
+    {"key": "3", "name": "團隊合照", "color": "#ffbc5e", "action": "move"},
     TRASH,
 ]
 PALETTE = ["#87d1ff", "#7dff95", "#ffbc5e", "#ff8080", "#c9a3ff", "#5eead4", "#f0abfc", "#fde047", "#94a3b8"]
@@ -35,13 +34,13 @@ PALETTE = ["#87d1ff", "#7dff95", "#ffbc5e", "#ff8080", "#c9a3ff", "#5eead4", "#f
 KEY_POOL = "1234567890wertyuiopasdfghjklzxcvbnm"
 USER_PATH = config.CONFIG_DIR / "categories.json"
 PROFILES_PATH = config.CONFIG_DIR / "category_profiles.json"
-DEFAULT_PROFILE = tr("預設")
+DEFAULT_PROFILE = "預設"
 
 # 新增設定檔時可以選的範本：每一組都是一整套分類（廢片 q 會自動補上）。
 TEMPLATES = {
-    tr("旅遊"): [(tr("風景"), "#87d1ff"), (tr("人像"), "#f0abfc"), (tr("美食"), "#ffbc5e"), (tr("街拍"), "#7dff95"), (tr("建築"), "#c9a3ff")],
-    tr("活動攝影"): [(tr("舞台"), "#87d1ff"), (tr("觀眾"), "#7dff95"), (tr("合照"), "#ffbc5e"), (tr("花絮"), "#c9a3ff"), (tr("精選"), "#fde047")],
-    tr("作品整理"): [(tr("精選"), "#fde047"), (tr("候選"), "#87d1ff"), (tr("待修圖"), "#ffbc5e"), (tr("已發佈"), "#7dff95")],
+    "旅遊": [("風景", "#87d1ff"), ("人像", "#f0abfc"), ("美食", "#ffbc5e"), ("街拍", "#7dff95"), ("建築", "#c9a3ff")],
+    "活動攝影": [("舞台", "#87d1ff"), ("觀眾", "#7dff95"), ("合照", "#ffbc5e"), ("花絮", "#c9a3ff"), ("精選", "#fde047")],
+    "作品整理": [("精選", "#fde047"), ("候選", "#87d1ff"), ("待修圖", "#ffbc5e"), ("已發佈", "#7dff95")],
 }
 HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -55,7 +54,7 @@ def sanitize_folder(name) -> str:
     s = re.sub(r'[\\/:*?"<>|]', "_", str(name or ""))
     s = re.sub(r"[\x00-\x1f]", "", s).strip()
     s = re.sub(r"[. ]+$", "", s)
-    return (s or tr("未命名"))[:80]
+    return (s or "未命名")[:80]
 
 
 def action_label(action: str) -> str:
@@ -75,7 +74,7 @@ class Category:
 
 def _normalize_one(raw, index) -> Category:
     src = raw if isinstance(raw, dict) else {}
-    name = str(src.get("name") or "").strip() or tr('分類 {0}').format(index + 1)
+    name = str(src.get("name") or "").strip() or f'分類 {index + 1}'
     is_trash = src.get("isTrash") is True or src.get("name") == TRASH["name"] or src.get("folder") == TRASH["folder"]
     action = src.get("action") if src.get("action") in ACTIONS else "move"
     color = src.get("color") if HEX_RE.match(str(src.get("color") or "")) else PALETTE[index % len(PALETTE)]
@@ -160,7 +159,7 @@ class Categories(QObject):
         self.save()
 
     def _unique(self, name: str) -> str:
-        name = (name or "").strip()[:40] or tr("新的設定檔")
+        name = (name or "").strip()[:40] or "新的設定檔"
         base, n = name, 2
         while name in self.profiles:
             name = f"{base} {n}"
@@ -225,7 +224,7 @@ class Categories(QObject):
 
     # ---------------- 編輯
     def add(self) -> Category:
-        cat = _normalize_one({"name": tr("新分類"), "color": PALETTE[len(self.items) % len(PALETTE)]}, len(self.items))
+        cat = _normalize_one({"name": "新分類", "color": PALETTE[len(self.items) % len(PALETTE)]}, len(self.items))
         self.items.insert(max(0, len(self.items) - 1), cat)
         self.items = _apply_fixed_rules(self.items)
         self.save()
@@ -282,11 +281,11 @@ class Categories(QObject):
         try:
             data = json.loads(text)
         except ValueError as e:
-            raise ValueError(tr("不是合法的 JSON 檔案")) from e
+            raise ValueError("不是合法的 JSON 檔案") from e
         arr = data if isinstance(data, list) else (data.get("categories") if isinstance(data, dict) else None)
         parsed = _normalize_list(arr)
         if not parsed:
-            raise ValueError(tr("JSON 裡找不到任何分類（需要 categories 陣列）"))
+            raise ValueError("JSON 裡找不到任何分類（需要 categories 陣列）")
         self.items = parsed
         self.save()
 

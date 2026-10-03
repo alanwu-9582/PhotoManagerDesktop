@@ -8,17 +8,14 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr, tr_value
 
 import os
-import threading
 import zipfile
 
-from PySide6.QtCore import QEvent, QObject, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPainterPath
-from PySide6.QtWidgets import (QAbstractButton, QAbstractSpinBox, QApplication, QComboBox,
-                               QFileDialog, QFrame, QLineEdit, QPlainTextEdit, QScrollArea, QSlider, QSplitter,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractButton, QAbstractSpinBox, QApplication, QComboBox, QFileDialog, QFrame,
+                               QLineEdit, QPlainTextEdit, QScrollArea, QSplitter, QWidget)
 
 from .. import config
 from ..engine import organize as org
@@ -32,9 +29,9 @@ from ..ui.viewer import Viewer, display_edge
 from ..ui.widgets import Stepper, Flag, EmptyState, FlowLayout, button, hbox, label, notify, vbox
 from .base import Page
 
-SIDE_FIELDS = [("dateTimeOriginal", tr("拍攝時間")), ("model", tr("相機型號")), ("lensModel", tr("鏡頭")),
-               ("focalLength", tr("焦段")), ("fNumber", tr("光圈")), ("exposureTime", tr("快門")), ("iso", "ISO"),
-               ("creativeStyle", tr("創意風格"))]
+SIDE_FIELDS = [("dateTimeOriginal", "拍攝時間"), ("model", "相機型號"), ("lensModel", "鏡頭"),
+               ("focalLength", "焦段"), ("fNumber", "光圈"), ("exposureTime", "快門"), ("iso", "ISO"),
+               ("creativeStyle", "創意風格")]
 
 
 class LegendItem(QAbstractButton):
@@ -51,7 +48,7 @@ class LegendItem(QAbstractButton):
     def sizeHint(self):
         fm = QFontMetrics(theme.font("callout", 600))
         if self.cat is None:
-            return QSize(fm.horizontalAdvance(tr("清除")) + 48, 30)
+            return QSize(fm.horizontalAdvance("清除") + 48, 30)
         extra = fm.horizontalAdvance(f"{self.cat.name}  {self.count}  {action_label(self.cat.action)}")
         return QSize(extra + 52, 30)
 
@@ -71,7 +68,7 @@ class LegendItem(QAbstractButton):
             p.setFont(theme.font("callout", 600))
             ic = icons.pixmap("x", theme.T["label"], 11)
             p.drawPixmap(QRectF(key_r.center().x() - 5.5, key_r.center().y() - 5.5, 11, 11), ic, QRectF(ic.rect()))
-            p.drawText(QRectF(32, 0, self.width() - 36, 30), Qt.AlignmentFlag.AlignVCenter, tr("清除"))
+            p.drawText(QRectF(32, 0, self.width() - 36, 30), Qt.AlignmentFlag.AlignVCenter, "清除")
             return
         col = QColor(self.cat.color)
         p.fillPath(kp, col)
@@ -129,7 +126,7 @@ class _KeyFilter(QObject):
 
 
 class OrganizePage(Page):
-    title = tr("整理分類")
+    title = "整理分類"
     uses_source = True
 
     def __init__(self, window):
@@ -153,14 +150,14 @@ class OrganizePage(Page):
         self.viewer.peek_released.connect(self.end_peek)
         self.viewer.info.toggled.connect(lambda on: setattr(self, "_info_open", on))
         self.empty = EmptyState("layers")
-        self.empty.set(tr("尚未載入照片"), tr("開啟資料夾後，用 1 2 3… 標記、方向鍵切換。"))
+        self.empty.set("尚未載入照片", "從上方「開啟資料夾」開始。")
         left = QWidget()
         left.setLayout(vbox(self.viewer, self.empty, spacing=0))
 
         # ---------------- 右：套用 + 縮圖
-        self.apply_btn = button(tr("套用整理"), "primary", None, tr("把標記好的照片搬進分類資料夾"), self.apply)
+        self.apply_btn = button("套用整理", "primary", None, "把標記好的照片搬進分類資料夾", self.apply)
         self.apply_btn.setProperty("kind", "primary")
-        self.zip_btn = button(tr("打包 .zip"), None, "download", tr("把標記好的照片依分類打包成一個 .zip"), self.export_zip)
+        self.zip_btn = button("打包 .zip", None, "download", "把標記好的照片依分類打包成一個 .zip", self.export_zip)
         self.hint = label("", "secondary", wrap=True)
         self.hint.setTextFormat(Qt.TextFormat.RichText)
         self.result = label("", None, wrap=True)
@@ -183,14 +180,14 @@ class OrganizePage(Page):
         apply_box.layout().itemAt(0).layout().setStretch(0, 1)
         apply_box.setFixedHeight(160)
 
-        self.col_slider = Stepper([(n, str(n)) for n in range(2, 7)], state.manage_columns, tip=tr("每排幾張"))
+        self.col_slider = Stepper([(n, str(n)) for n in range(2, 7)], state.manage_columns, tip="每排幾張")
         self.col_slider.changed.connect(self.set_columns)
-        self.hide_done = Flag(tr("只看未分類"))
+        self.hide_done = Flag("只看未分類")
         self.hide_done.setChecked(state.hide_done)
         self.hide_done.toggled.connect(self.set_hide_done)
         self.count = label("—", "caption")
         # 張數自己一行：跟開關擠在同一行的話，側欄一窄就會被切掉。
-        bar = hbox(label(tr("每排"), "secondary"), self.col_slider, None, self.hide_done, spacing=6)
+        bar = hbox(label("每排", "secondary"), self.col_slider, None, self.hide_done, spacing=6)
         self.count.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         self.grid = PhotoGrid("thumb", state.manage_columns, draggable=True)
@@ -288,8 +285,8 @@ class OrganizePage(Page):
         self.viewer.setVisible(has)
         self.empty.setVisible(not has)
         if not has:
-            self.empty.set(tr("沒有符合的照片") if library.photos else tr("尚未載入照片"),
-                           tr("取消「只看未分類」看全部。") if library.photos else tr("開啟資料夾後，用 1 2 3… 標記、方向鍵切換。"))
+            self.empty.set("沒有符合的照片" if library.photos else "尚未載入照片",
+                           "取消「只看未分類」看全部。" if library.photos else "從上方「開啟資料夾」開始。")
         self.render_legend()
         self.update_selection(scroll=True)
         self.render_apply_hint()
@@ -318,7 +315,7 @@ class OrganizePage(Page):
             it.update()
         self.legend.invalidate()
         s = library.stats()
-        self.count.setText(tr('{0:,} · 標記 {1:,} · 整理 {2:,}').format(s['total'], s['marked'], s['organized']) if s["total"] else "—")
+        self.count.setText('{0:,} · 標記 {1:,} · 整理 {2:,}'.format(s['total'], s['marked'], s['organized']) if s["total"] else "—")
 
     def update_selection(self, scroll=True):
         photo = self.current()
@@ -344,23 +341,23 @@ class OrganizePage(Page):
         if not photo:
             return
         info = photo.info or {}
-        lines = [(tr("檔名"), photo.name), (tr("大小"), fmt_bytes(photo.size or 0))]
+        lines = [("檔名", photo.name), ("大小", fmt_bytes(photo.size or 0))]
         for k, lb in SIDE_FIELDS:
             v = info.get(k)
             if v is not None:
-                lines.append((lb, tr_value(v)))
+                lines.append((lb, str(v)))
         if photo.info_state == "idle" and not photo.info:
-            lines.append(("EXIF", tr("讀取中…")))
+            lines.append(("EXIF", "讀取中…"))
         elif not photo.info:
-            lines.append(("EXIF", tr("無 EXIF")))
+            lines.append(("EXIF", "無 EXIF"))
         badge = None
         if photo.organized:
-            verb = tr("複製") if photo.organized["action"] == "copy" else tr("移動")
-            badge = (tr('✓ 已{0}到 {1}').format(verb, photo.organized['folder']), theme.T["green"])
+            verb = "複製" if photo.organized["action"] == "copy" else "移動"
+            badge = ('✓ 已{0}到 {1}'.format(verb, photo.organized['folder']), theme.T["green"])
         elif photo.cat_id:
             cat = categories.by_id(photo.cat_id)
             if cat:
-                badge = (f"{cat.name} → {tr('不移動') if cat.action == 'keep' else cat.folder}", cat.color)
+                badge = (f"{cat.name} → {'不移動' if cat.action == 'keep' else cat.folder}", cat.color)
         self.viewer.info.open = self._info_open
         self.viewer.info.set_content(lines, badge)
         self.viewer._place_overlays()  # noqa: SLF001
@@ -379,7 +376,7 @@ class OrganizePage(Page):
         i = self.selected_index(lst)
         photo = lst[i]
         if photo.organized:   # 已經搬過的就不再改
-            notify(tr("這張已經整理過了"), "warning")
+            notify("這張已經整理過了", "warning")
             return
         photo.cat_id = None if photo.cat_id == cat.id else cat.id
         library.save_marks()
@@ -505,7 +502,7 @@ class OrganizePage(Page):
     def render_apply_hint(self):
         self.zip_btn.setVisible(library.mode == "files")
         if not library.mode:
-            self.hint.setText(tr("尚未選擇照片來源"))
+            self.hint.setText("尚未選擇照片來源")
             self.apply_btn.setEnabled(False)
             return
         plan = org.plan(library)
@@ -513,46 +510,46 @@ class OrganizePage(Page):
         self.zip_btn.setEnabled(any(p.cat_id and (categories.by_id(p.cat_id) or None) and
                                     categories.by_id(p.cat_id).action != "keep" for p in library.photos))
         if not plan["total"]:
-            self.hint.setText(tr("沒有待整理的照片"))
+            self.hint.setText("沒有待整理的照片")
             return
-        where = library.root_name if library.mode == "folder" else tr("各照片所在的資料夾")
+        where = library.root_name if library.mode == "folder" else "各照片所在的資料夾"
         code = f"<span style='font-family:{theme.MONO_FAMILIES[0]}'>{{}}</span>"
         rows = "".join(
-            tr("<div><b>{0}</b> 張 → {1} <span style='color:{2}'>{3}</span></div>").format(b['count'], code.format(b['folder'] + '/'), theme.T['tertiary'], action_label(b['action']))
+            f"<div><b>{b['count']}</b> 張 → {code.format(b['folder'] + '/')} <span style='color:{theme.T['tertiary']}'>{action_label(b['action'])}</span></div>"
             for b in plan["byFolder"])
-        self.hint.setText(tr('<div><b>{0}</b> 張 → {1}</div>{2}').format(plan['total'], code.format(where), rows))
+        self.hint.setText('<div><b>{0}</b> 張 → {1}</div>{2}'.format(plan['total'], code.format(where), rows))
 
     def apply(self):
         plan = org.plan(library)
         if not plan["total"]:
             return
-        where = library.root_name if library.mode == "folder" else tr("各照片所在的資料夾")
-        summary = "\n".join(tr('  {0}/   {1} 張（{2}）').format(b['folder'], b['count'], action_label(b['action'])) for b in plan["byFolder"])
-        if not dialogs.confirm(self.win, tr('整理 {0} 張照片？').format(plan['total']),
-                               tr('即將在「{0}」內整理：\n\n{1}\n\n「移動」會真的改變檔案在硬碟上的位置（不會經過資源回收筒）。').format(where, summary),
-                               tone="danger", confirm_text=tr("開始整理")):
+        where = library.root_name if library.mode == "folder" else "各照片所在的資料夾"
+        summary = "\n".join('  {0}/   {1} 張（{2}）'.format(b['folder'], b['count'], action_label(b['action'])) for b in plan["byFolder"])
+        if not dialogs.confirm(self.win, '整理 {0} 張照片？'.format(plan['total']),
+                               f'即將在「{where}」內整理：\n\n{summary}\n\n「移動」會真的改變檔案在硬碟上的位置（不會經過資源回收筒）。',
+                               tone="danger", confirm_text="開始整理"):
             return
         self.apply_btn.setEnabled(False)
-        self.win.run_task(tr("整理中"), lambda cb: org.run(library, plan["items"], cb), self._applied)
+        self.win.run_task("整理中", lambda cb: org.run(library, plan["items"], cb), self._applied)
 
     def _applied(self, result, error):
         if error:
-            dialogs.alert(self.win, tr("整理失敗"), str(error), tone="danger")
+            dialogs.alert(self.win, "整理失敗", str(error), tone="danger")
         else:
             library.save_marks_now()
             failed = result["failed"]
-            html = tr('移動 <b>{0}</b> · 複製 <b>{1}</b>').format(result['moved'], result['copied'])
+            html = '移動 <b>{0}</b> · 複製 <b>{1}</b>'.format(result['moved'], result['copied'])
             if failed:
-                html += tr('<br>失敗 <b>{0}</b>：<br>').format(len(failed)) + "<br>".join(
+                html += f'<br>失敗 <b>{len(failed)}</b>：<br>' + "<br>".join(
                     f"{f['name']} — {f['message']}" for f in failed[:8])
             self.result.setText(html)
             self.result.setProperty("tone", "error" if failed else "ok")
             self.result.style().unpolish(self.result)
             self.result.style().polish(self.result)
             self.result.show()
-            notify(tr('已整理 {0} 張').format(result['moved'] + result['copied']), "danger" if failed else "success")
-            where = library.root_name if library.mode == "folder" else tr("各照片所在的資料夾")
-            history.add("organize", tr('整理 {0} 張（{1}）').format(result['moved'] + result['copied'], where), result["done"],
+            notify('已整理 {0} 張'.format(result['moved'] + result['copied']), "danger" if failed else "success")
+            where = library.root_name if library.mode == "folder" else "各照片所在的資料夾"
+            history.add("organize", '整理 {0} 張（{1}）'.format(result['moved'] + result['copied'], where), result["done"],
                         [(f["name"], f["message"]) for f in failed])
         library.stats_changed.emit()
         self.render_all()
@@ -564,9 +561,9 @@ class OrganizePage(Page):
             if cat and cat.action != "keep":
                 groups.setdefault(cat.folder, []).append(p)
         if not groups:
-            dialogs.alert(self.win, tr("沒有可打包的照片"), tr("先標記需要移動或複製的分類。"))
+            dialogs.alert(self.win, "沒有可打包的照片", "先標記需要移動或複製的分類。")
             return
-        path, _ = QFileDialog.getSaveFileName(self.win, tr("打包成 .zip"), "Photo_Manager_Export.zip", "ZIP (*.zip)")
+        path, _ = QFileDialog.getSaveFileName(self.win, "打包成 .zip", "Photo_Manager_Export.zip", "ZIP (*.zip)")
         if not path:
             return
 
@@ -590,10 +587,10 @@ class OrganizePage(Page):
 
         def done(n, error):
             if error:
-                dialogs.alert(self.win, tr("打包失敗"), str(error), tone="danger")
+                dialogs.alert(self.win, "打包失敗", str(error), tone="danger")
             else:
-                notify(tr('已打包 {0} 張').format(n), "success")
-                history.add("zip", tr('打包 {0} 張').format(n), [(f"{folder}/", tr('{0} 張').format(len(v))) for folder, v in groups.items()]
-                            + [(tr("檔案"), path)])
+                notify(f'已打包 {n} 張', "success")
+                history.add("zip", f'打包 {n} 張', [(f"{folder}/", f'{len(v)} 張') for folder, v in groups.items()]
+                            + [("檔案", path)])
 
-        self.win.run_task(tr("打包中"), job, done)
+        self.win.run_task("打包中", job, done)

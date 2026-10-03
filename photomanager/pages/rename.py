@@ -6,7 +6,6 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr
 
 import datetime as dt
 import re
@@ -30,11 +29,11 @@ TOKENS = [("date", "20260923"), ("time", "174218"), ("camera", "ILCE-6400"), ("l
 
 # 第一次開啟時的預設命名規則；之後使用者存的會放在設定檔裡。
 BUILTIN_PRESETS = [
-    {"name": tr("日期_相機_流水號"), "pattern": "{date}_{camera}_{index}"},
-    {"name": tr("日期_時間"), "pattern": "{date}_{time}"},
-    {"name": tr("資料夾_流水號"), "pattern": "{folder}_{index}"},
-    {"name": tr("日期_原檔名"), "pattern": "{date}_{original}"},
-    {"name": tr("相機_焦段_光圈_快門"), "pattern": "{camera}_{focal}_{fnumber}_{shutter}_{index}"},
+    {"name": "日期_相機_流水號", "pattern": "{date}_{camera}_{index}"},
+    {"name": "日期_時間", "pattern": "{date}_{time}"},
+    {"name": "資料夾_流水號", "pattern": "{folder}_{index}"},
+    {"name": "日期_原檔名", "pattern": "{date}_{original}"},
+    {"name": "相機_焦段_光圈_快門", "pattern": "{camera}_{focal}_{fnumber}_{shutter}_{index}"},
 ]
 PRESET_KEYS = ("pattern", "start", "pad", "case", "find", "replace")
 
@@ -195,7 +194,7 @@ class PlanDelegate(QStyledItemDelegate):
 
 
 class RenamePage(Page):
-    title = tr("批次改名")
+    title = "批次改名"
     uses_source = True
 
     def __init__(self, window):
@@ -210,23 +209,23 @@ class RenamePage(Page):
         self.pad.setRange(1, 8)
         self.pad.setValue(3)
         self.case = QComboBox()
-        for v, lb in (("keep", tr("原樣")), ("lower", tr("小寫")), ("upper", tr("大寫"))):
+        for v, lb in (("keep", "原樣"), ("lower", "小寫"), ("upper", "大寫")):
             self.case.addItem(lb, v)
         self.case.setCurrentIndex(1)
-        self.marked_only = Flag(tr("只改已標記"))
+        self.marked_only = Flag("只改已標記")
         # 命名預設：常用的規則存起來，下次一選就好，不必重新組 token。
         self.presets = load_presets()
         self.preset_box = QComboBox()
         self.preset_box.setMinimumWidth(220)
-        self.preset_box.setToolTip(tr("套用存好的命名規則"))
+        self.preset_box.setToolTip("套用存好的命名規則")
         self.preset_box.activated.connect(self.apply_preset)
-        self.save_preset_btn = button(tr("儲存為預設…"), None, "plus", tr("把目前的命名規則存成預設"), self.save_preset)
-        self.del_preset_btn = icon_button("trash", tr("刪除這個預設"), self.delete_preset, size=15)
+        self.save_preset_btn = button("儲存為預設…", None, "plus", "把目前的命名規則存成預設", self.save_preset)
+        self.del_preset_btn = icon_button("trash", "刪除這個預設", self.delete_preset, size=15)
         self._fill_presets()
-        self.root.addLayout(hbox(label(tr("命名預設"), "secondary"), self.preset_box, self.save_preset_btn,
+        self.root.addLayout(hbox(label("命名預設", "secondary"), self.preset_box, self.save_preset_btn,
                                  self.del_preset_btn, None, spacing=8))
-        top = hbox(field(tr("命名"), self.pattern), field(tr("起號"), self.start), field(tr("位數"), self.pad),
-                   field(tr("副檔名"), self.case), spacing=12)
+        top = hbox(field("命名", self.pattern), field("起號", self.start), field("位數", self.pad),
+                   field("副檔名", self.case), spacing=12)
         top.setStretch(0, 1)
         mo = vbox(None, self.marked_only, spacing=0)
         top.addLayout(mo)
@@ -237,7 +236,7 @@ class RenamePage(Page):
         for key, hint in TOKENS:
             b = QToolButton()
             b.setText(f"{{{key}}}  {hint}")
-            b.setToolTip(tr('插入 {{{0}}}（例如 {1}）').format(key, hint))
+            b.setToolTip(f'插入 {{{key}}}（例如 {hint}）')
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setStyleSheet(f"QToolButton {{ border-radius: 6px; padding: 5px 10px; font-family: {theme.MONO_FAMILIES[0]}; }}")
             b.clicked.connect(lambda _=False, k=key: self.insert_token(k))
@@ -245,7 +244,7 @@ class RenamePage(Page):
         self.root.addWidget(tokens_host)
 
         # 正則取代（收合）
-        self.regex_toggle = button(tr("正則取代"), "plain", "chevron-right", on_click=self.toggle_regex)
+        self.regex_toggle = button("正則取代", "plain", "chevron-right", on_click=self.toggle_regex)
         self.find = QLineEdit()
         self.find.setPlaceholderText(r"/DSC_(\d+)/i")
         self.find.setProperty("mono", True)
@@ -259,7 +258,7 @@ class RenamePage(Page):
         self.root.addLayout(hbox(self.regex_toggle, None))
         self.root.addWidget(self.regex_row)
 
-        self.apply_btn = button(tr("套用改名"), "primary", None, tr("直接在硬碟上改檔名"), self.apply)
+        self.apply_btn = button("套用改名", "primary", None, "直接在硬碟上改檔名", self.apply)
         self.summary = label("—", "secondary")
         self.summary.setTextFormat(Qt.TextFormat.RichText)
         self.result = label("", None, wrap=True)
@@ -300,7 +299,7 @@ class RenamePage(Page):
     def _fill_presets(self, select=None):
         self.preset_box.blockSignals(True)
         self.preset_box.clear()
-        self.preset_box.addItem(tr("選擇預設…"), None)
+        self.preset_box.addItem("選擇預設…", None)
         for i, pr in enumerate(self.presets):
             self.preset_box.addItem(f"{pr['name']}    {pr.get('pattern', '')}", i)
         self.preset_box.setCurrentIndex(0 if select is None else select + 1)
@@ -334,7 +333,7 @@ class RenamePage(Page):
         from PySide6.QtWidgets import QInputDialog
         cur = self.preset_box.currentData()
         default = self.presets[cur]["name"] if cur is not None else self.pattern.text()
-        name, ok = QInputDialog.getText(self.win, tr("儲存命名預設"), tr("預設名稱："), text=default)
+        name, ok = QInputDialog.getText(self.win, "儲存命名預設", "預設名稱：", text=default)
         name = (name or "").strip()
         if not ok or not name:
             return
@@ -347,15 +346,15 @@ class RenamePage(Page):
             self.presets[idx] = data
         self._store()
         self._fill_presets(idx)
-        notify(tr('已儲存命名預設「{0}」').format(data['name']), "success")
+        notify('已儲存命名預設「{0}」'.format(data['name']), "success")
 
     def delete_preset(self):
         i = self.preset_box.currentData()
         if i is None:
             return
         name = self.presets[i]["name"]
-        if not dialogs.confirm(self.win, tr('刪除命名預設「{0}」？').format(name), tr("只會刪掉這個預設，不會動到任何檔案。"),
-                               confirm_text=tr("刪除")):
+        if not dialogs.confirm(self.win, f'刪除命名預設「{name}」？', "只會刪掉這個預設，不會動到任何檔案。",
+                               confirm_text="刪除"):
             return
         del self.presets[i]
         self._store()
@@ -396,7 +395,7 @@ class RenamePage(Page):
     def render(self):
         self._dirty = False
         o = self.opts()
-        self.regex_note.setText(tr("這段正則寫錯了") if o["regex_bad"] else "")
+        self.regex_note.setText("這段正則寫錯了" if o["regex_bad"] else "")
         self.find.setProperty("invalid", o["regex_bad"])
         self.find.style().unpolish(self.find)
         self.find.style().polish(self.find)
@@ -405,9 +404,9 @@ class RenamePage(Page):
         changed = sum(1 for r in plan if r["changed"])
         dup = sum(1 for r in plan if r["duplicate"])
         if photos:
-            s = tr('<b>{0:,}</b> / {1:,} 張會改名').format(changed, len(photos))
+            s = f'<b>{changed:,}</b> / {len(photos):,} 張會改名'
             if dup:
-                s += tr(" · <span style='color:{0}'>{1} 個撞名</span>").format(theme.T['red'], dup)
+                s += f" · <span style='color:{theme.T['red']}'>{dup} 個撞名</span>"
             self.summary.setText(s)
         else:
             self.summary.setText("—")
@@ -416,8 +415,8 @@ class RenamePage(Page):
         self.frame.setVisible(bool(photos))
         self.empty.setVisible(not photos)
         if not photos:
-            self.empty.set(tr("沒有符合的照片") if library.photos else tr("尚未載入照片"),
-                           tr("取消「只改已標記」看全部。") if library.photos else tr("開啟資料夾後，這裡會列出每一張的新檔名。"))
+            self.empty.set("沒有符合的照片" if library.photos else "尚未載入照片",
+                           "取消「只改已標記」看全部。" if library.photos else "開啟資料夾後，這裡會列出每一張的新檔名。")
 
     def apply(self):
         o = self.opts()
@@ -425,32 +424,32 @@ class RenamePage(Page):
         if not plan:
             return
         sample = "\n".join(f"  {r['photo'].name}  →  {r['name']}" for r in plan[:5])
-        more = tr('\n  …還有 {0} 個').format(len(plan) - 5) if len(plan) > 5 else ""
-        if not dialogs.confirm(self.win, tr('改名 {0} 個檔案？').format(len(plan)),
-                               tr('{0}{1}\n\n檔案會直接在硬碟上改名（不會經過資源回收筒）。').format(sample, more),
-                               tone="danger", confirm_text=tr("開始改名")):
+        more = f'\n  …還有 {len(plan) - 5} 個' if len(plan) > 5 else ""
+        if not dialogs.confirm(self.win, f'改名 {len(plan)} 個檔案？',
+                               f'{sample}{more}\n\n檔案會直接在硬碟上改名（不會經過資源回收筒）。',
+                               tone="danger", confirm_text="開始改名"):
             return
         self.apply_btn.setEnabled(False)
         items = [(r["photo"], r["name"]) for r in plan]
-        self.win.run_task(tr("改名中"), lambda cb: org.rename(library, items, cb), self._done)
+        self.win.run_task("改名中", lambda cb: org.rename(library, items, cb), self._done)
 
     def _done(self, result, error):
         if error:
-            dialogs.alert(self.win, tr("改名失敗"), str(error), tone="danger")
+            dialogs.alert(self.win, "改名失敗", str(error), tone="danger")
         else:
             library.save_marks_now()
             failed = result["failed"]
-            history.add("rename", tr('改名 {0} 個檔案').format(result['renamed']), result["done"],
+            history.add("rename", '改名 {0} 個檔案'.format(result['renamed']), result["done"],
                         [(f["name"], f["message"]) for f in failed])
-            html = tr('已改名 <b>{0}</b>').format(result['renamed'])
+            html = '已改名 <b>{0}</b>'.format(result['renamed'])
             if failed:
-                html += tr('<br>失敗 <b>{0}</b>：<br>').format(len(failed)) + "<br>".join(
+                html += f'<br>失敗 <b>{len(failed)}</b>：<br>' + "<br>".join(
                     f"{f['name']} — {f['message']}" for f in failed[:8])
             self.result.setText(html)
             self.result.setProperty("tone", "error" if failed else "ok")
             self.result.style().unpolish(self.result)
             self.result.style().polish(self.result)
             self.result.show()
-            notify(tr('已改名 {0} 個檔案').format(result['renamed']), "danger" if failed else "success")
+            notify('已改名 {0} 個檔案'.format(result['renamed']), "danger" if failed else "success")
         library.changed.emit()
         library.stats_changed.emit()

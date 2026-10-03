@@ -5,7 +5,6 @@
 """
 from __future__ import annotations
 
-from ..i18n import LANG, tr
 
 from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QFontMetrics, QGuiApplication, QImageReader, QPainter, QPainterPath, QPen, QPixmap
@@ -14,12 +13,12 @@ from PySide6.QtWidgets import (QAbstractButton, QFrame, QLineEdit, QPlainTextEdi
 from ..engine import prompts as P
 from ..ui import icons, theme
 from ..ui.dialogs import scroll
-from ..ui.widgets import EmptyState, FlowLayout, button, hbox, label, notify, vbox, wrap
+from ..ui.widgets import EmptyState, FlowLayout, button, hbox, label, notify, wrap
 from .base import Page
 
-TAG_NAMES = {"poster": tr("海報"), "collage": tr("拼貼"), "geometric": tr("幾何"), "paper": tr("紙張"),
-             "watercolor": tr("水彩"), "grid": tr("方格")}
-LANG_NAMES = {"en": tr("英文"), "zh-Hant": tr("中文")}
+TAG_NAMES = {"poster": "海報", "collage": "拼貼", "geometric": "幾何", "paper": "紙張",
+             "watercolor": "水彩", "grid": "方格"}
+LANG_NAMES = {"en": "英文", "zh-Hant": "中文"}
 
 
 def load_thumb(path, edge) -> QPixmap:
@@ -52,7 +51,7 @@ def paint_cover(p: QPainter, box: QRectF, pix: QPixmap | None, radius=8):
     p.drawPixmap(QRectF(c.x() - 13, c.y() - 22, 26, 26), glyph, QRectF(glyph.rect()))
     p.setFont(theme.font("caption"))
     p.setPen(theme.c("tertiary"))
-    p.drawText(QRectF(box.x(), c.y() + 8, box.width(), 18), Qt.AlignmentFlag.AlignHCenter, tr("尚無參考圖"))
+    p.drawText(QRectF(box.x(), c.y() + 8, box.width(), 18), Qt.AlignmentFlag.AlignHCenter, "尚無參考圖")
 
 
 class PromptCard(QAbstractButton):
@@ -86,7 +85,7 @@ class PromptCard(QAbstractButton):
         p.setFont(f)
         p.setPen(theme.c("label"))
         p.drawText(QRectF(x, y, w, 20), Qt.AlignmentFlag.AlignVCenter,
-                   QFontMetrics(f).elidedText(self.prompt.localized(self.prompt.title, LANG), Qt.TextElideMode.ElideRight, int(w)))
+                   QFontMetrics(f).elidedText(self.prompt.title, Qt.TextElideMode.ElideRight, int(w)))
         f = theme.font("caption")
         p.setFont(f)
         p.setPen(theme.c("secondary"))
@@ -118,19 +117,19 @@ class ThumbView(QAbstractButton):
 
 
 class PromptsPage(Page):
-    title = tr("AI 風格提示詞")
+    title = "AI 風格提示詞"
 
     def __init__(self, window):
         super().__init__(window)
         self.search = QLineEdit()
-        self.search.setPlaceholderText(tr("搜尋標題、標籤或內容"))
+        self.search.setPlaceholderText("搜尋標題、標籤或內容")
         self.search.setClearButtonEnabled(True)
         self.search.setFixedWidth(260)
         self.search.textChanged.connect(self._filter)
         self.count = label("", "secondary")
         for w in (self.search, self.count, None,
-                  button(tr("重新整理"), None, "refresh", tr("重新讀取提示詞資料夾（加了參考圖之後按這裡）"), self.reload),
-                  button(tr("開啟提示詞資料夾"), None, "folder", str(P.PROMPT_DIR), lambda: P.open_folder(P.PROMPT_DIR))):
+                  button("重新整理", None, "refresh", "重新讀取提示詞資料夾（加了參考圖之後按這裡）", self.reload),
+                  button("開啟提示詞資料夾", None, "folder", str(P.PROMPT_DIR), lambda: P.open_folder(P.PROMPT_DIR))):
             if w is None:
                 self.toolbar.addStretch(1)
             else:
@@ -153,8 +152,8 @@ class PromptsPage(Page):
         self.text = QPlainTextEdit()
         self.text.setReadOnly(True)
         self.text.setFont(theme.font("callout"))
-        self.copy_btn = button(tr("複製提示詞"), "primary", "copy", tr("複製全文，貼到 AI 生圖工具裡"), self.copy)
-        self.folder_btn = button(tr("開啟這個資料夾"), None, "folder", tr("放參考結果圖的地方"), self.open_current)
+        self.copy_btn = button("複製提示詞", "primary", "copy", "複製全文，貼到 AI 生圖工具裡", self.copy)
+        self.folder_btn = button("開啟這個資料夾", None, "folder", "放參考結果圖的地方", self.open_current)
         self.chars = label("", "caption")
         for w in (self.d_title, self.d_meta, self.d_desc, self.thumbs_host):
             d.addWidget(w)
@@ -170,7 +169,7 @@ class PromptsPage(Page):
         self.split.setHandleWidth(14)
         self.split.setChildrenCollapsible(False)
         self.empty = EmptyState("copy")
-        self.empty.set(tr("還沒有提示詞"), tr("在提示詞資料夾裡加一個資料夾（prompt.txt + 參考圖），再寫進 prompts.json。"))
+        self.empty.set("還沒有提示詞", "提示詞資料夾是空的。")
         self.root.addWidget(self.split, 1)
         self.root.addWidget(self.empty, 1)
         self.cards: list[PromptCard] = []
@@ -203,38 +202,37 @@ class PromptsPage(Page):
         shown = 0
         for c in self.cards:
             pr = c.prompt
-            hay = " ".join([*pr.title.values(), *pr.description.values(), *pr.tags,
+            hay = " ".join([pr.title, pr.description, *pr.tags,
                             *[TAG_NAMES.get(t, "") for t in pr.tags], pr.text()]).lower()
             ok = not q or q in hay
             c.setVisible(ok)
             shown += ok
-        self.count.setText(tr('{0} 個提示詞').format(shown) if not q else tr('找到 {0} 個').format(shown))
+        self.count.setText(f'{shown} 個提示詞' if not q else f'找到 {shown} 個')
         self.cards_host.updateGeometry()
 
     def select(self, pr: P.Prompt):
         self.current = pr
         for c in self.cards:
             c.setChecked(c.prompt.id == pr.id)
-        self.d_title.setText(pr.localized(pr.title, LANG))
+        self.d_title.setText(pr.title)
         tags = "、".join(TAG_NAMES.get(t, t) for t in pr.tags)
-        self.d_meta.setText(tr('語言：{0}　標籤：{1}').format(LANG_NAMES.get(pr.language, pr.language or "—"), tags or "—"))
-        self.d_desc.setText(pr.localized(pr.description, LANG))
+        self.d_meta.setText(f'語言：{LANG_NAMES.get(pr.language, pr.language or "—")}　標籤：{tags or "—"}')
+        self.d_desc.setText(pr.description)
         self.thumbs.clear()
+        self.thumbs_host.setVisible(bool(pr.thumbnails))
         if pr.thumbnails:
             for t in pr.thumbnails[:8]:
                 self.thumbs.addWidget(ThumbView(t))
-        else:
-            self.thumbs.addWidget(label(tr("還沒有參考結果圖：把圖片放進這個提示詞的資料夾，再按「重新整理」。"), "caption", wrap=True))
         text = pr.text()
         self.text.setPlainText(text)
-        self.chars.setText(tr('{0:,} 字').format(len(text)))
+        self.chars.setText(f'{len(text):,} 字')
 
     # ---------------------------------------------------------------- 動作
     def copy(self):
         if not self.current:
             return
         QGuiApplication.clipboard().setText(self.current.text())
-        notify(tr('已複製「{0}」').format(self.current.localized(self.current.title, LANG)), "success")
+        notify(f'已複製「{self.current.title}」', "success")
 
     def open_current(self):
         if self.current:

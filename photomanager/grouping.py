@@ -9,7 +9,6 @@
 """
 from __future__ import annotations
 
-from .i18n import tr
 
 import datetime as dt
 import re
@@ -18,14 +17,14 @@ from .engine.categories import categories
 from .engine.library import nat_key
 
 GROUPS = [
-    ("none", tr("不分組")),
-    ("folder", tr("資料夾")),
-    ("date", tr("拍攝日期")),
-    ("camera", tr("相機型號")),
-    ("lens", tr("鏡頭")),
-    ("category", tr("分類")),
-    ("format", tr("檔案格式")),
-    ("similar", tr("相似照片")),
+    ("none", "不分組"),
+    ("folder", "資料夾"),
+    ("date", "拍攝日期"),
+    ("camera", "相機型號"),
+    ("lens", "鏡頭"),
+    ("category", "分類"),
+    ("format", "檔案格式"),
+    ("similar", "相似照片"),
 ]
 NEEDS_EXIF = {"date", "camera", "lens", "similar"}
 
@@ -47,23 +46,23 @@ def shot_time(p) -> float:
 def _key(p, how):
     info = p.info or {}
     if how == "folder":
-        return p.folder or tr("（最上層）")
+        return p.folder or "（最上層）"
     if how == "date":
         m = _DT.match(str(info.get("dateTimeOriginal") or ""))
         if m:
             return f"{m[1]}-{m[2]}-{m[3]}"
-        return dt.datetime.fromtimestamp(p.mtime).strftime("%Y-%m-%d") if p.mtime else tr("（不明）")
+        return dt.datetime.fromtimestamp(p.mtime).strftime("%Y-%m-%d") if p.mtime else "（不明）"
     if how == "camera":
-        return info.get("model") or tr("（沒有 EXIF）")
+        return info.get("model") or "（沒有 EXIF）"
     if how == "lens":
-        return info.get("lensModel") or tr("（沒有鏡頭資訊）")
+        return info.get("lensModel") or "（沒有鏡頭資訊）"
     if how == "category":
         if p.organized:
-            return tr('已整理 · {0}').format(p.organized['folder'])
+            return '已整理 · {0}'.format(p.organized['folder'])
         c = categories.by_id(p.cat_id) if p.cat_id else None
-        return c.name if c else tr("未分類")
+        return c.name if c else "未分類"
     if how == "format":
-        return p.ext or tr("（其他）")
+        return p.ext or "（其他）"
     return ""
 
 
@@ -81,7 +80,7 @@ def group(photos, how):
             keys.sort(key=lambda k: (k.startswith(("（", "(")), k), reverse=False)
     elif how == "category":
         order = {c.name: i for i, c in enumerate(categories.all())}
-        keys.sort(key=lambda k: (k.startswith(tr("已整理")), k == tr("未分類"), order.get(k, 99), k))
+        keys.sort(key=lambda k: (k.startswith("已整理"), k == "未分類", order.get(k, 99), k))
     else:
         keys.sort(key=lambda k: (-len(buckets[k]), nat_key(k)))
     return [(f"{how}:{k}", k, buckets[k]) for k in keys]
@@ -116,5 +115,5 @@ def _similar(photos):
         when = dt.datetime.fromtimestamp(t).strftime("%m/%d %H:%M:%S") if t else run[0].name
         out.append((f"similar:{run[0].id}", f"{when} · {run[0].name}", run))
     if singles:
-        out.append(("similar:__single", tr("單張（沒有相似的）"), singles))
+        out.append(("similar:__single", "單張（沒有相似的）", singles))
     return out

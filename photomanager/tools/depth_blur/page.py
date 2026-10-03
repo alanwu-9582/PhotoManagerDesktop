@@ -8,19 +8,16 @@
 """
 from __future__ import annotations
 
-from ...i18n import tr
 
 import threading
 
 import numpy as np
 from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import QComboBox, QSizePolicy, QWidget
+from PySide6.QtWidgets import QComboBox, QWidget
 
-from ...engine import image as imgmod
 from ...ui import dialogs, theme
-from ...ui.widgets import (Flag, Segmented, SliderField, Stepper, button, field, hbox, label, notify, row, section,
-                           wrap)
+from ...ui.widgets import Flag, Segmented, SliderField, Stepper, button, field, hbox, label, notify, row, section
 from ..common import Stage, ToolPage, safe_name
 from . import depth as D
 from . import model
@@ -28,7 +25,7 @@ from . import model
 PREVIEW_EDGE = 1100
 BINS = 64
 F_STOPS = [1.2, 1.4, 1.8, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0]
-BLADES = [(0, tr("圓形")), (9, tr("9 葉")), (7, tr("7 葉")), (6, tr("6 葉")), (5, tr("5 葉")), (-1, tr("圓環"))]
+BLADES = [(0, "圓形"), (9, "9 葉"), (7, "7 葉"), (6, "6 葉"), (5, "5 葉"), (-1, "圓環")]
 
 
 def max_radius(f_number, edge):
@@ -209,7 +206,7 @@ class BlurStage(Stage):
             p.fillPath(theme.round_rect(QPainterPath(), tag, 6), QColor(0, 0, 0, 160))
             p.setPen(QColor("white"))
             p.setFont(theme.font("caption", 600))
-            p.drawText(tag, Qt.AlignmentFlag.AlignCenter, tr("計算中…"))
+            p.drawText(tag, Qt.AlignmentFlag.AlignCenter, "計算中…")
 
     def mousePressEvent(self, e):
         if self.empty or not self.pix or e.button() != Qt.MouseButton.LeftButton:
@@ -243,7 +240,7 @@ class _Relay(QObject):
 
 # ============================================================ 頁面
 class DepthBlurPage(ToolPage):
-    title = tr("景深模糊")
+    title = "景深模糊"
     scopes = True
     compare = True
 
@@ -264,7 +261,7 @@ class DepthBlurPage(ToolPage):
         self._timer.setInterval(30)
         self._timer.timeout.connect(self._render)
         self.stage.focus_clicked.connect(self.focus_at)
-        self.add_output_buttons(tr("用原尺寸輸出（Ctrl+S）"))
+        self.add_output_buttons("用原尺寸輸出（Ctrl+S）")
         self._build()
 
     def make_stage(self):
@@ -273,50 +270,49 @@ class DepthBlurPage(ToolPage):
     # ---------------------------------------------------------------- 控制項
     def _build(self):
         F = self.form
-        F.addWidget(section(tr("偵測")))
+        F.addWidget(section("偵測"))
         self.method_label = label("", "secondary", wrap=True)
-        self.redetect = button(tr("重新偵測"), None, "refresh", on_click=self.detect)
-        self.dl_btn = button(tr('下載 AI 深度模型（約 {0} MB）').format(model.MODEL_SIZE_MB), "plain", "download",
-                             tr("更準確的遠近判斷，只需要下載一次"), self.ask_download)
+        self.redetect = button("重新偵測", None, "refresh", on_click=self.detect)
+        self.dl_btn = button(f'下載 AI 深度模型（約 {model.MODEL_SIZE_MB} MB）', "plain", "download",
+                             "更準確的遠近判斷，只需要下載一次", self.ask_download)
         F.addWidget(self.method_label)
         F.addWidget(self._wrap(hbox(self.redetect, self.dl_btn, None, spacing=6)))
-        self.view = Segmented([("result", tr("成品")), ("depth", tr("深度圖")), ("original", tr("原圖"))], "result")
+        self.view = Segmented([("result", "成品"), ("depth", "深度圖"), ("original", "原圖")], "result")
         self.view.changed.connect(lambda *_: self._show())
-        F.addWidget(field(tr("顯示"), self.view))
+        F.addWidget(field("顯示", self.view))
 
-        F.addWidget(section(tr("對焦範圍")))
+        F.addWidget(section("對焦範圍"))
         self.hist = DepthHistogram()
         # 拖曳時只更新深度圖的顯示（很快）；成品等放開才重算
         self.hist.changed.connect(lambda *_: self.view.value() == "depth" and self._show())
         self.hist.released.connect(self.schedule)
+        self.hist.setToolTip("拖兩邊的把手選對焦範圍，或直接點照片上想對焦的地方")
         F.addWidget(self.hist)
-        F.addWidget(label(tr("拖動滑桿或點點擊照片上想對焦的地方。"),
-                          "caption", wrap=True))
-        self.bg_only = Flag(tr("只模糊背景"))
+        self.bg_only = Flag("只模糊背景")
         self.bg_only.toggled.connect(lambda *_: self.schedule())
         F.addWidget(self.bg_only)
 
-        F.addWidget(section(tr("鏡頭")))
-        self.aperture = Stepper([(f, f"f/{f:g}") for f in F_STOPS], 1.8, tip=tr("光圈值：越小越糊"), expand=True)
+        F.addWidget(section("鏡頭"))
+        self.aperture = Stepper([(f, f"f/{f:g}") for f in F_STOPS], 1.8, tip="光圈值：越小越糊", expand=True)
         self.aperture.changed.connect(lambda *_: self.schedule())
-        self.feather = SliderField(tr("過渡"), 1, 50, 1, 8, lambda v: f"{v:.0f}%")
+        self.feather = SliderField("過渡", 1, 50, 1, 8, lambda v: f"{v:.0f}%")
         self.feather.committed.connect(lambda *_: self.schedule())
-        F.addWidget(row(field(tr("光圈"), self.aperture), self.feather))
+        F.addWidget(row(field("光圈", self.aperture), self.feather))
         # 光圈形狀：圓形、幾片葉片圍出的多邊形，或反射鏡頭那種中間空心的圓環
         self.blades = QComboBox()
         for v, lb in BLADES:
             self.blades.addItem(lb, v)
         self.blades.currentIndexChanged.connect(lambda *_: self.schedule())
-        self.bokeh = SliderField(tr("散景亮點"), 0, 100, 1, 50, lambda v: f"{v:.0f}")
+        self.bokeh = SliderField("散景亮點", 0, 100, 1, 50, lambda v: f"{v:.0f}")
         self.bokeh.committed.connect(lambda *_: self.schedule())
-        F.addWidget(row(field(tr("光圈形狀"), self.blades), self.bokeh))
+        F.addWidget(row(field("光圈形狀", self.blades), self.bokeh))
 
-        F.addWidget(section(tr("匯出")))
+        F.addWidget(section("匯出"))
         self.fmt = QComboBox()
         self.fmt.addItem("JPEG", "jpg")
         self.fmt.addItem("PNG", "png")
-        self.quality = SliderField(tr("JPEG 品質"), 60, 100, 1, 92, lambda v: f"{v:.0f}%")
-        F.addWidget(row(field(tr("格式"), self.fmt), self.quality))
+        self.quality = SliderField("JPEG 品質", 60, 100, 1, 92, lambda v: f"{v:.0f}%")
+        F.addWidget(row(field("格式", self.fmt), self.quality))
         F.addStretch(1)
         self._paint_method()
 
@@ -329,15 +325,17 @@ class DepthBlurPage(ToolPage):
     def _paint_method(self):
         has_rt, has_model = model.runtime_available(), model.installed()
         self.dl_btn.setVisible(has_rt and not has_model)
-        if self.method:
-            text = self.method
+        # 畫面上只留一句；詳細原因放在提示裡
+        if self.method and self.method != "AI":
+            text, tip = "快速估計", self.method
         elif has_model and has_rt:
-            text = tr("使用 AI 深度模型（Depth Anything V2）。")
+            text, tip = "AI 深度模型", "Depth Anything V2"
         elif not has_rt:
-            text = tr("快速估計（沒有安裝 onnxruntime，無法使用 AI 模型）。")
+            text, tip = "快速估計", "沒有安裝 onnxruntime，無法使用 AI 模型"
         else:
-            text = tr("快速估計：只看位置與清晰度，遠近常常不準。下載 AI 模型會準確很多。")
+            text, tip = "快速估計", "只看位置與清晰度，遠近常常不準；下載 AI 模型會準確很多"
         self.method_label.setText(text)
+        self.method_label.setToolTip(tip)
 
     # ---------------------------------------------------------------- 讀圖與偵測
     def on_image(self, path, img):
@@ -369,7 +367,7 @@ class DepthBlurPage(ToolPage):
             try:
                 if use_model:
                     d = model.predict(rgb)
-                    how = tr("使用 AI 深度模型（Depth Anything V2）。")
+                    how = "AI"
                 else:
                     d = D.estimate_depth(rgb)
                     how = ""
@@ -378,7 +376,7 @@ class DepthBlurPage(ToolPage):
             except Exception as e:  # noqa: BLE001
                 try:
                     d = D.refine_to(D.estimate_depth(rgb), rgb)
-                    self._relay.depth.emit(token, d, tr('AI 模型無法使用（{0}），改用快速估計。').format(e))
+                    self._relay.depth.emit(token, d, f'AI 模型無法使用（{e}），改用快速估計。')
                 except Exception as e2:  # noqa: BLE001
                     self._relay.depth.emit(token, None, str(e2))
 
@@ -389,7 +387,7 @@ class DepthBlurPage(ToolPage):
             return
         self.stage.busy = False
         if d is None:
-            self.set_status(tr('偵測失敗: {0}').format(how), "error")
+            self.set_status(f'偵測失敗: {how}', "error")
             return
         self.depth = d
         self.method = how
@@ -470,9 +468,9 @@ class DepthBlurPage(ToolPage):
     # ---------------------------------------------------------------- 模型下載
     def ask_download(self):
         if not dialogs.confirm(
-                self.win, tr("下載 AI 深度模型？"),
-                tr('檔案：Depth Anything V2 Small（int8 量化 ONNX）\n來源：{0}\n大小：約 {1} MB\n\n只需要下載一次，之後離線也能用。照片不會被上傳。').format(model.MODEL_SOURCE, model.MODEL_SIZE_MB),
-                confirm_text=tr("下載")):
+                self.win, "下載 AI 深度模型？",
+                f'檔案：Depth Anything V2 Small（int8 量化 ONNX）\n來源：{model.MODEL_SOURCE}\n大小：約 {model.MODEL_SIZE_MB} MB\n\n只需要下載一次，之後離線也能用。照片不會被上傳。',
+                confirm_text="下載"):
             return
         self.dl_btn.setEnabled(False)
 
@@ -487,18 +485,18 @@ class DepthBlurPage(ToolPage):
 
     def _on_download_progress(self, done, total):
         mb = done / 1e6
-        self.dl_btn.setText(tr('下載中… {0:.1f} / {1:.0f} MB').format(mb, total / 1e6) if total else tr('下載中… {0:.1f} MB').format(mb))
+        self.dl_btn.setText(f'下載中… {mb:.1f} / {total / 1e6:.0f} MB' if total else f'下載中… {mb:.1f} MB')
 
     def _on_downloaded(self, error):
         self.dl_btn.setEnabled(True)
-        self.dl_btn.setText(tr('下載 AI 深度模型（約 {0} MB）').format(model.MODEL_SIZE_MB))
+        self.dl_btn.setText(f'下載 AI 深度模型（約 {model.MODEL_SIZE_MB} MB）')
         if error:
-            dialogs.alert(self.win, tr("下載失敗"), str(error), tone="danger")
+            dialogs.alert(self.win, "下載失敗", str(error), tone="danger")
             return
         model.reset()
         self.method = ""
         self._paint_method()
-        notify(tr("AI 深度模型已就緒"), "success")
+        notify("AI 深度模型已就緒", "success")
         self.detect()
 
     # ---------------------------------------------------------------- 儲存
@@ -512,13 +510,13 @@ class DepthBlurPage(ToolPage):
         lo, hi, feather, bg_only, fnum, blades, bokeh = self.params()
 
         def job(progress):
-            progress(0.03, tr("準備原尺寸"))
+            progress(0.03, "準備原尺寸")
             full_rgb = qimage_to_rgb(full)
-            progress(0.1, tr("對齊深度圖"))
+            progress(0.1, "對齊深度圖")
             d = D.refine_to(depth, full_rgb)
             amap = D.blur_amount_map(d, lo, hi, feather, bg_only)
             out = D.render(full_rgb, amap, max_radius(fnum, max(full_rgb.shape[:2])), blades=blades, bokeh=bokeh,
-                           on_progress=lambda k, n: progress(0.25 + 0.6 * k / n, tr('模糊第 {0}/{1} 層').format(k, n)))
+                           on_progress=lambda k, n: progress(0.25 + 0.6 * k / n, f'模糊第 {k}/{n} 層'))
             return rgb_to_qimage(out)
 
         return job

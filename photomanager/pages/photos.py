@@ -6,15 +6,13 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr, tr_value
 
 import os
 import subprocess
 import sys
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QAbstractButton, QComboBox, QHBoxLayout, QMenu, QSlider, QVBoxLayout, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QAbstractButton, QComboBox, QHBoxLayout, QMenu, QVBoxLayout, QWidget
 
 from .. import config
 from ..engine.categories import categories
@@ -41,12 +39,12 @@ def reveal_in_explorer(path):
         else:
             subprocess.Popen(["xdg-open", os.path.dirname(path)])
     except OSError as e:
-        notify(tr('開不了檔案總管: {0}').format(e), "danger")
+        notify(f'開不了檔案總管: {e}', "danger")
 
 
 class FieldDialog(Sheet):
     def __init__(self, parent, on_change):
-        super().__init__(parent, tr("EXIF 欄位"), width=520)
+        super().__init__(parent, "EXIF 欄位", width=520)
         holder = QWidget()
         self.flow = FlowLayout(holder, spacing=8)
         self.chips = {}
@@ -57,8 +55,8 @@ class FieldDialog(Sheet):
             self.chips[key] = chip
         self.body.addWidget(holder)
         self.body.addStretch(1)
-        off = button(tr("全部關閉"), on_click=self.all_off)
-        done = button(tr("完成"), "primary", on_click=self.accept)
+        off = button("全部關閉", on_click=self.all_off)
+        done = button("完成", "primary", on_click=self.accept)
         done.setDefault(True)
         self.footer.addWidget(off)
         self.add_footer(done)
@@ -73,7 +71,7 @@ class FilterDialog(Sheet):
     """條件都是即時生效的：每改一下，頁尾的張數就跟著變，關窗時才重畫縮圖牆。"""
 
     def __init__(self, parent, on_change):
-        super().__init__(parent, tr("篩選照片"), width=660, height=460)
+        super().__init__(parent, "篩選照片", width=660, height=460)
         self.on_change = on_change
         self.rows_host = QWidget()
         self.rows = QVBoxLayout(self.rows_host)
@@ -81,11 +79,11 @@ class FilterDialog(Sheet):
         self.rows.setSpacing(8)
         self.rows.addStretch(1)
         self.body.addWidget(scroll(self.rows_host), 1)
-        add = button(tr("新增條件"), "plain", "plus", on_click=self.add_row)
+        add = button("新增條件", "plain", "plus", on_click=self.add_row)
         self.body.addLayout(hbox(add, None))
         self.summary = label("", "secondary")
-        clear = button(tr("清除全部"), on_click=self.clear_all)
-        done = button(tr("完成"), "primary", on_click=self.accept)
+        clear = button("清除全部", on_click=self.clear_all)
+        done = button("完成", "primary", on_click=self.accept)
         done.setDefault(True)
         self.footer.addWidget(self.summary)
         self.add_footer(clear, done)
@@ -97,7 +95,7 @@ class FilterDialog(Sheet):
 
     def refresh(self):
         shown = len(apply_filters(library.photos, state.filters))
-        self.summary.setText(tr('{0:,} / {1:,} 張').format(shown, len(library.photos)))
+        self.summary.setText(f'{shown:,} / {len(library.photos):,} 張')
         self.on_change(False)
 
     def add_row(self):
@@ -120,22 +118,22 @@ class FilterDialog(Sheet):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
         field_box = QComboBox()
-        field_box.addItem(tr("選擇欄位"), "")
+        field_box.addItem("選擇欄位", "")
         for ff in FILTER_FIELDS:
             field_box.addItem(ff["label"], ff["key"])
         field_box.setCurrentIndex(max(0, field_box.findData(f["field"])))
         value_box = QComboBox()
         value_box.setMinimumWidth(220)
-        mode = Segmented([("include", tr("包含")), ("exclude", tr("不包含"))], f.get("mode", "include"), compact=True)
-        remove = icon_button("x", tr("移除這個條件"), size=14)
+        mode = Segmented([("include", "包含"), ("exclude", "不包含")], f.get("mode", "include"), compact=True)
+        remove = icon_button("x", "移除這個條件", size=14)
 
         def fill_values():
             opts = options_for(f["field"], library.photos) if f["field"] else []
             value_box.blockSignals(True)
             value_box.clear()
-            value_box.addItem(tr("選擇值") if opts else tr("沒有可選的值"), "")
+            value_box.addItem("選擇值" if opts else "沒有可選的值", "")
             for v, n in opts:
-                value_box.addItem(f"{tr_value(v)}（{n}）", v)
+                value_box.addItem(f"{v}（{n}）", v)
             value_box.setCurrentIndex(max(0, value_box.findData(f["value"])))
             value_box.setEnabled(bool(opts))
             value_box.blockSignals(False)
@@ -217,43 +215,43 @@ class ToolSheet(Sheet):
             row = ToolRow(r["icon"], r["label"])
             row.clicked.connect(lambda _=False, k=key: (self.accept(), win.open_in_tool(k, photo)))
             self.body.addWidget(row)
-        info = ToolRow("info", tr("完整資訊"))
+        info = ToolRow("info", "完整資訊")
         info.clicked.connect(lambda: (self.accept(), open_inspector(win, photo)))
         self.body.addWidget(info)
-        reveal = ToolRow("folder", tr("在檔案總管中顯示"), os.path.dirname(photo.path))
+        reveal = ToolRow("folder", "在檔案總管中顯示", os.path.dirname(photo.path))
         reveal.clicked.connect(lambda: (self.accept(), reveal_in_explorer(photo.path)))
         self.body.addWidget(reveal)
-        self.add_footer(button(tr("取消"), on_click=self.reject))
+        self.add_footer(button("取消", on_click=self.reject))
 
 
 class PhotosPage(Page):
-    title = tr("照片檢視")
+    title = "照片檢視"
     uses_source = True
 
     def __init__(self, window):
         super().__init__(window)
-        self.col_slider = Stepper([(n, str(n)) for n in range(1, 9)], state.columns, tip=tr("每排幾張"))
+        self.col_slider = Stepper([(n, str(n)) for n in range(1, 9)], state.columns, tip="每排幾張")
         self.col_slider.changed.connect(self.set_columns)
-        self.filter_btn = BadgeButton(tr("篩選"), "filter")
+        self.filter_btn = BadgeButton("篩選", "filter")
         self.filter_btn.clicked.connect(self.open_filters)
-        self.field_btn = BadgeButton(tr("EXIF 欄位"), "info")
+        self.field_btn = BadgeButton("EXIF 欄位", "info")
         self.field_btn.clicked.connect(self.open_fields)
         self.count = label("—", "secondary")
-        self.display = Segmented([("card", tr("卡片")), ("list", tr("列表"))], config.settings.get("photoDisplay") or "card",
+        self.display = Segmented([("card", "卡片"), ("list", "列表")], config.settings.get("photoDisplay") or "card",
                                  compact=True)
         self.display.changed.connect(self.set_display)
         self.group_box = QComboBox()
         for v, lb in GROUPS:
             self.group_box.addItem(lb, v)
         self.group_box.setCurrentIndex(max(0, self.group_box.findData(config.settings.get("photoGroup") or "none")))
-        self.group_box.setToolTip(tr("群組方式"))
+        self.group_box.setToolTip("群組方式")
         self.group_box.currentIndexChanged.connect(lambda *_: self.set_group(self.group_box.currentData()))
-        self.expand_btn = button(tr("全部展開"), None, "chevron-down", on_click=lambda: self.collapse_all(False))
-        self.collapse_btn = button(tr("全部收合"), None, "chevron-right", on_click=lambda: self.collapse_all(True))
-        self.cols_label = label(tr("每排"), "secondary")
+        self.expand_btn = button("全部展開", None, "chevron-down", on_click=lambda: self.collapse_all(False))
+        self.collapse_btn = button("全部收合", None, "chevron-right", on_click=lambda: self.collapse_all(True))
+        self.cols_label = label("每排", "secondary")
         self.collapsed: set[str] = set()
         for w in (self.display, 8, self.cols_label, self.col_slider, 6, vline(), 6,
-                  label(tr("群組"), "secondary"), self.group_box, self.expand_btn, self.collapse_btn, 6, vline(), 6,
+                  label("群組", "secondary"), self.group_box, self.expand_btn, self.collapse_btn, 6, vline(), 6,
                   self.filter_btn, self.field_btn, None, self.count):
             if w is None:
                 self.toolbar.addStretch(1)
@@ -269,7 +267,7 @@ class PhotosPage(Page):
         self.grid.header_clicked.connect(self.toggle_group)
         self.grid.display = self.display.value()
         self.empty = EmptyState("image")
-        self.empty.set(tr("尚未載入照片"), tr("從上方「開啟資料夾」開始。"), button(tr("開啟資料夾…"), "primary", "folder",
+        self.empty.set("尚未載入照片", "從上方「開啟資料夾」開始。", button("開啟資料夾…", "primary", "folder",
                                                                    on_click=lambda: self.win.source.open_folder()))
         self.root.addWidget(self.grid, 1)
         self.root.addWidget(self.empty, 1)
@@ -360,17 +358,17 @@ class PhotosPage(Page):
         self.empty.setVisible(not has)
         if not has:
             if total:
-                self.empty.set(tr("沒有符合條件的照片"), tr("調整或清除篩選條件。"),
-                               button(tr("清除篩選"), on_click=self.clear_filters))
+                self.empty.set("沒有符合條件的照片", "調整或清除篩選條件。",
+                               button("清除篩選", on_click=self.clear_filters))
             else:
-                self.empty.set(tr("尚未載入照片"), tr("從上方「開啟資料夾」開始，或選擇幾張照片。"),
-                               button(tr("開啟資料夾…"), "primary", "folder", on_click=lambda: self.win.source.open_folder()))
+                self.empty.set("尚未載入照片", "從上方「開啟資料夾」開始。",
+                               button("開啟資料夾…", "primary", "folder", on_click=lambda: self.win.source.open_folder()))
         self._paint_counts(photos)
 
     def _paint_counts(self, photos=None):
         total = len(library.photos)
         shown = len(photos) if photos is not None else len(self.visible_photos())
-        self.count.setText("—" if not total else tr('{0:,} 張').format(total) if shown == total else tr('{0:,} / {1:,} 張').format(shown, total))
+        self.count.setText("—" if not total else f'{total:,} 張' if shown == total else f'{shown:,} / {total:,} 張')
         on = sum(1 for k, _, _ in FIELD_DEFS if state.fields.get(k))
         self.field_btn.setBadge(f"{on}/{len(FIELD_DEFS)}", quiet=True)
         n = active_count(state.filters)
@@ -409,12 +407,12 @@ class PhotosPage(Page):
 
     def context_menu(self, photo, pos):
         menu = QMenu(self)
-        menu.addAction(icons.icon("info", theme.T["label"]), tr("完整資訊"), lambda: open_inspector(self.win, photo))
-        sub = menu.addMenu(icons.icon("tool", theme.T["label"]), tr("用編輯工具開啟"))
+        menu.addAction(icons.icon("info", theme.T["label"]), "完整資訊", lambda: open_inspector(self.win, photo))
+        sub = menu.addMenu(icons.icon("tool", theme.T["label"]), "用編輯工具開啟")
         for key, r in self.win.edit_routes():
             sub.addAction(icons.icon(r["icon"], theme.T["label"]), r["label"],
                           lambda k=key: self.win.open_in_tool(k, photo))
-        tag = menu.addMenu(icons.icon("tag", theme.T["label"]), tr("標記分類"))
+        tag = menu.addMenu(icons.icon("tag", theme.T["label"]), "標記分類")
         for cat in categories.all():
             act = tag.addAction(f"{cat.key.upper()}   {cat.name}")
             act.setCheckable(True)
@@ -422,9 +420,9 @@ class PhotosPage(Page):
             act.setEnabled(not photo.organized)
             act.triggered.connect(lambda _=False, c=cat: self._mark(photo, c.id))
         tag.addSeparator()
-        tag.addAction(tr("清除標記"), lambda: self._mark(photo, None)).setEnabled(bool(photo.cat_id) and not photo.organized)
+        tag.addAction("清除標記", lambda: self._mark(photo, None)).setEnabled(bool(photo.cat_id) and not photo.organized)
         menu.addSeparator()
-        menu.addAction(icons.icon("folder", theme.T["label"]), tr("在檔案總管中顯示"), lambda: reveal_in_explorer(photo.path))
+        menu.addAction(icons.icon("folder", theme.T["label"]), "在檔案總管中顯示", lambda: reveal_in_explorer(photo.path))
         menu.exec(pos)
 
     def _mark(self, photo, cid):

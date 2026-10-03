@@ -10,7 +10,6 @@ HEIC / HEIF 走 pillow-heif（本機解碼，原檔不會被改寫）。Qt 解�
 """
 from __future__ import annotations
 
-from ..i18n import tr
 
 import os
 import re
@@ -79,7 +78,7 @@ def qimage_to_pil(img: QImage):
 
 def _decode_pillow(path: str, max_edge: int | None) -> QImage:
     if Image is None:
-        raise DecodeError(tr("缺少 Pillow"))
+        raise DecodeError("缺少 Pillow")
     try:
         with Image.open(path) as im:
             if max_edge and im.format == "JPEG":
@@ -90,8 +89,8 @@ def _decode_pillow(path: str, max_edge: int | None) -> QImage:
             return pil_to_qimage(im)
     except Exception as e:  # noqa: BLE001
         if is_heic(path) and not HAS_HEIF:
-            raise DecodeError(tr("這張 HEIC 解不開（缺少 pillow-heif），只能看 EXIF")) from e
-        raise DecodeError(tr('解不開這張照片: {0}').format(e)) from e
+            raise DecodeError("這張 HEIC 解不開（缺少 pillow-heif），只能看 EXIF") from e
+        raise DecodeError(f'解不開這張照片: {e}') from e
 
 
 def decode(path: str, max_edge: int | None = None) -> QImage:
@@ -145,4 +144,4 @@ def save_image(img: QImage, path: str, quality: int = 92) -> None:
         p.end()
         img = flat
     if not img.save(path, fmt, quality if fmt == "JPG" else -1):
-        raise DecodeError(tr("輸出失敗"))
+        raise DecodeError("輸出失敗")

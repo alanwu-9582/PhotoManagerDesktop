@@ -11,7 +11,6 @@ iPhone 的攝影風格分兩類：
 """
 from __future__ import annotations
 
-from ...i18n import tr
 
 import numpy as np
 
@@ -36,11 +35,11 @@ STYLES = {
     "stark_bw": {"bw": True, "contrast": 0.46, "bright": -0.04},
 }
 
-UNDERTONES = [("standard", tr("標準")), ("amber", tr("琥珀色")), ("gold", tr("金色")),
-              ("rose_gold", tr("玫瑰金色")), ("neutral", tr("中性")), ("cool_rose", tr("冷玫瑰色"))]
-MOODS = [("vibrant", tr("鮮明")), ("natural", tr("自然")), ("luminous", tr("明亮")), ("dramatic", tr("戲劇效果")),
-         ("quiet", tr("寧靜")), ("cozy", tr("溫馨")), ("ethereal", tr("空靈")), ("muted_bw", tr("柔和黑白")),
-         ("stark_bw", tr("強烈黑白"))]
+UNDERTONES = [("standard", "標準"), ("amber", "琥珀色"), ("gold", "金色"),
+              ("rose_gold", "玫瑰金色"), ("neutral", "中性"), ("cool_rose", "冷玫瑰色")]
+MOODS = [("vibrant", "鮮明"), ("natural", "自然"), ("luminous", "明亮"), ("dramatic", "戲劇效果"),
+         ("quiet", "寧靜"), ("cozy", "溫馨"), ("ethereal", "空靈"), ("muted_bw", "柔和黑白"),
+         ("stark_bw", "強烈黑白")]
 
 DEFAULT = {"name": "standard", "tone": 0.0, "color": 0.0, "palette": 100.0}
 _LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)

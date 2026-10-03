@@ -8,7 +8,6 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr, tr_value
 
 import math
 
@@ -116,7 +115,7 @@ class Donut(Chart):
     def __init__(self, entries, max_slices=6):
         head = entries[:max_slices]
         rest = sum(c for _, c in entries[max_slices:])
-        super().__init__(head + ([(tr("其他"), rest)] if rest else []))
+        super().__init__(head + ([("其他", rest)] if rest else []))
         self.total = sum(c for _, c in self.entries)
 
     def sizeHint(self):
@@ -246,7 +245,7 @@ class Heatmap(Chart):
     """熱力圖：兩個維度交叉的張數。顏色用平方根壓一下，少數很多張的格子才不會把其他格子都壓成空白。"""
     LEFT, BOTTOM, TOP = 58, 22, 4
 
-    def __init__(self, xs, ys, matrix, unit=tr("張"), x_every=1):
+    def __init__(self, xs, ys, matrix, unit="張", x_every=1):
         super().__init__([])
         self.xs, self.ys, self.m = xs, ys, matrix
         self.unit = unit
@@ -307,7 +306,7 @@ class Heatmap(Chart):
         grad.setColorAt(0, lo)
         grad.setColorAt(1, hi)
         p.fillPath(theme.round_rect(QPainterPath(), lr, 2), grad)
-        p.drawText(QRectF(lr.left() - 30, lr.y() - 5, 26, 18), Qt.AlignmentFlag.AlignRight, tr("少"))
+        p.drawText(QRectF(lr.left() - 30, lr.y() - 5, 26, 18), Qt.AlignmentFlag.AlignRight, "少")
         p.drawText(QRectF(lr.right() + 4, lr.y() - 5, 30, 18), Qt.AlignmentFlag.AlignLeft, f"{self.max:,}")
         p.end()
 
@@ -425,12 +424,12 @@ def card(title, sub, chart):
 
 
 class StatsPage(Page):
-    title = tr("統計數據")
+    title = "統計數據"
     uses_source = True
 
     def __init__(self, window):
         super().__init__(window)
-        self.scan_btn = button(tr("分析全部照片的 EXIF"), "primary", "chart", on_click=library.scan_all_info)
+        self.scan_btn = button("分析全部照片的 EXIF", "primary", "chart", on_click=library.scan_all_info)
         self.progress = label("—", "secondary")
         self.toolbar.addWidget(self.scan_btn)
         self.toolbar.addWidget(self.progress)
@@ -441,7 +440,7 @@ class StatsPage(Page):
         self.grid.setSpacing(14)
         self.area = scroll(self.host)
         self.empty = EmptyState("chart")
-        self.empty.set(tr("尚未載入照片"), tr("開啟資料夾後，這裡會畫出焦段、ISO、光圈等分佈。"))
+        self.empty.set("尚未載入照片", "從上方「開啟資料夾」開始。")
         self.root.addWidget(self.area, 1)
         self.root.addWidget(self.empty, 1)
         self._cols = 3
@@ -461,7 +460,7 @@ class StatsPage(Page):
 
     def _paint_progress(self):
         s = library.stats()
-        self.progress.setText(tr('已分析 {0:,} / {1:,}').format(s['analysed'], s['total']) if s["total"] else "—")
+        self.progress.setText('已分析 {0:,} / {1:,}'.format(s['analysed'], s['total']) if s["total"] else "—")
         self.scan_btn.setEnabled(bool(s["total"]) and s["analysed"] < s["total"] and not library.scanning)
 
     def resizeEvent(self, e):
@@ -494,26 +493,26 @@ class StatsPage(Page):
         aperture = bucket([float(f[2:]) if f else None for f in g("fNumber")],
                           lambda v: f"f/{int(v) if v == int(v) else v}")
         shutter = bucket(g("exposureTimeRaw"), fmt_shutter)
-        wb = bucket(g("whiteBalanceRaw"), lambda v: tr_value(WHITE_BALANCE_STD[v]) if v in WHITE_BALANCE_STD else tr('代碼 {0}').format(v))
+        wb = bucket(g("whiteBalanceRaw"), lambda v: WHITE_BALANCE_STD[v] if v in WHITE_BALANCE_STD else f'代碼 {v}')
         cams = bucket(g("model"), str)
         lenses = bucket(g("lensModel"), str)
         styles = bucket(g("creativeStyle"), str)
         formats = bucket([p.ext or None for p in library.photos], str)
 
         cards = [
-            card(tr("焦段"), "mm", Columns(focal) if focal else None),
+            card("焦段", "mm", Columns(focal) if focal else None),
             card("ISO", "", Columns(iso) if iso else None),
-            card(tr("光圈"), "", Donut(aperture) if aperture else None),
-            card(tr("快門"), "", Bars(shutter) if shutter else None),
-            card(tr("白平衡"), "", Donut(wb) if wb else None),
-            card(tr("檔案格式"), "", Donut(formats) if formats else None),
-            card(tr("相機"), "", Bars(cams) if cams else None),
-            card(tr("鏡頭"), "", Bars(lenses) if lenses else None),
-            card(tr("創意風格"), "Sony", Donut(styles) if styles else None),
+            card("光圈", "", Donut(aperture) if aperture else None),
+            card("快門", "", Bars(shutter) if shutter else None),
+            card("白平衡", "", Donut(wb) if wb else None),
+            card("檔案格式", "", Donut(formats) if formats else None),
+            card("相機", "", Bars(cams) if cams else None),
+            card("鏡頭", "", Bars(lenses) if lenses else None),
+            card("創意風格", "Sony", Donut(styles) if styles else None),
         ]
         # ---------------- 二維：兩個參數一起看
         week, n_week = _weekday_hour(library.photos)
-        heat_time = Heatmap([f"{h}" for h in range(24)], [tr("週一"), tr("週二"), tr("週三"), tr("週四"), tr("週五"), tr("週六"), tr("週日")],
+        heat_time = Heatmap([f"{h}" for h in range(24)], ["週一", "週二", "週三", "週四", "週五", "週六", "週日"],
                             week, x_every=2) if n_week else None
         fa = [(i.get("focalLengthRaw"), i.get("fNumber")) for i in infos if i.get("focalLengthRaw") and i.get("fNumber")]
         heat_fa = None
@@ -527,8 +526,8 @@ class StatsPage(Page):
             heat_fa = Heatmap([f"{x}" for x in xs], ys, m, x_every=max(1, math.ceil(len(xs) / 10)))
         si = [(i["exposureTimeRaw"], i["iso"]) for i in infos if i.get("exposureTimeRaw") and i.get("iso")]
         scatter = Scatter(si) if si else None
-        cards += [card(tr("焦段 × 光圈"), tr("mm × f 值"), heat_fa), card(tr("快門 × ISO"), tr("泡泡越大 = 越多張"), scatter)]
-        wide = card(tr("拍攝時段"), tr("星期 × 小時"), heat_time)
+        cards += [card("焦段 × 光圈", "mm × f 值", heat_fa), card("快門 × ISO", "泡泡越大 = 越多張", scatter)]
+        wide = card("拍攝時段", "星期 × 小時", heat_time)
 
         # 一格一格往下排；一排排不滿時，最後一張往右延伸把空位補滿。
         # 不加 AlignTop：同一排的卡片會被拉到跟最高的那張一樣高。

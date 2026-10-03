@@ -14,16 +14,14 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr
 
 import hashlib
 import json
 import os
 import sqlite3
 import threading
-import time
 from collections import OrderedDict, deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from PySide6.QtCore import QObject, Signal, Qt
 from PySide6.QtGui import QImage, QPixmap
@@ -266,12 +264,6 @@ class Library(QObject):
     def by_id(self, pid) -> Photo | None:
         return self._by_id.get(pid)
 
-    def index_of(self, photo: Photo) -> int:
-        try:
-            return self.photos.index(photo)
-        except ValueError:
-            return -1
-
     def stats(self):
         total = len(self.photos)
         analysed = marked = organized = size = 0
@@ -363,7 +355,7 @@ class Library(QObject):
         if self.mode != "files":
             self.clear()
             self.mode = "files"
-            self.root_name = tr("已選擇的檔案")
+            self.root_name = "已選擇的檔案"
         known = {os.path.normcase(p.path) for p in self.photos}
         added = []
         for path in accepted:
@@ -487,7 +479,7 @@ class Library(QObject):
 
         for p in todo:
             self.sched.push("scan", job(p))
-        self.progress.emit(0, total, tr("分析 EXIF"))
+        self.progress.emit(0, total, "分析 EXIF")
         return True
 
     def scan_hashes(self, on_done=None):
@@ -529,14 +521,14 @@ class Library(QObject):
 
         for p in todo:
             self.sched.push("scan", job(p))
-        self.progress.emit(0, total, tr("比對相似照片"))
+        self.progress.emit(0, total, "比對相似照片")
         return True
 
     def _on_hashes(self, payload):
         token, n, total, on_done = payload
         if token is not getattr(self, "_hash_token", None):
             return
-        self.progress.emit(n, total, tr("比對相似照片"))
+        self.progress.emit(n, total, "比對相似照片")
         if n >= total:
             self._hash_token = None
             self.progress_done.emit()
@@ -560,7 +552,7 @@ class Library(QObject):
             token, n, total = payload
             if token is not self._scan_token:
                 return
-            self.progress.emit(n, total, tr("分析 EXIF"))
+            self.progress.emit(n, total, "分析 EXIF")
             self.stats_changed.emit()
             if n >= total:
                 self._scan_token = None

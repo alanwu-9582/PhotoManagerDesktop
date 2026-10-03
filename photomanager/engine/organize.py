@@ -6,7 +6,6 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr
 
 import os
 import shutil
@@ -22,7 +21,7 @@ def unique_name(directory: str, name: str) -> str:
         cand = f"{base}_{i}{ext}"
         if not os.path.exists(os.path.join(directory, cand)):
             return cand
-    raise OSError(tr('找不到可用的檔名: {0}').format(name))
+    raise OSError(f'找不到可用的檔名: {name}')
 
 
 def _dest_root(lib, photo) -> str:
@@ -69,7 +68,7 @@ def run(lib, items, on_progress=None):
                 shutil.copy2(p.path, dest)
                 p.organized = {"folder": folder, "action": "copy"}
                 result["copied"] += 1
-                result["done"].append((p.name, tr('複製到 {0}/{1}').format(folder, target)))
+                result["done"].append((p.name, f'複製到 {folder}/{target}'))
             else:
                 try:
                     os.replace(p.path, dest)
@@ -80,7 +79,7 @@ def run(lib, items, on_progress=None):
                 lib.relocated(p, dest, rel)
                 p.organized = {"folder": folder, "action": "move"}
                 result["moved"] += 1
-                result["done"].append((old, tr('移動到 {0}/{1}').format(folder, target)))
+                result["done"].append((old, f'移動到 {folder}/{target}'))
         except OSError as e:
             result["failed"].append({"name": p.name, "message": e.strerror or str(e)})
     if on_progress:

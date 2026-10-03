@@ -5,30 +5,29 @@
 """
 from __future__ import annotations
 
-from .i18n import tr
 
 from PySide6.QtCore import QObject, Signal
 
 from . import config
 
 FIELD_DEFS = [
-    ("model", tr("相機型號"), True),
-    ("lensModel", tr("鏡頭"), True),
-    ("focalLength", tr("焦段"), True),
-    ("fNumber", tr("光圈"), True),
-    ("exposureTime", tr("快門"), True),
+    ("model", "相機型號", True),
+    ("lensModel", "鏡頭", True),
+    ("focalLength", "焦段", True),
+    ("fNumber", "光圈", True),
+    ("exposureTime", "快門", True),
     ("iso", "ISO", True),
-    ("exposureBias", tr("曝光補償"), False),
-    ("exposureProgram", tr("曝光模式"), False),
-    ("meteringMode", tr("測光模式"), False),
-    ("whiteBalance", tr("白平衡"), False),
-    ("flash", tr("閃光燈"), False),
-    ("colorSpace", tr("色域"), False),
-    ("focalLength35mm", tr("35mm等效焦段"), False),
-    ("sceneCaptureType", tr("場景類型"), False),
-    ("dateTimeOriginal", tr("拍攝時間"), False),
-    ("make", tr("製造商"), False),
-    ("creativeStyle", tr("創意風格 (Sony)"), True),
+    ("exposureBias", "曝光補償", False),
+    ("exposureProgram", "曝光模式", False),
+    ("meteringMode", "測光模式", False),
+    ("whiteBalance", "白平衡", False),
+    ("flash", "閃光燈", False),
+    ("colorSpace", "色域", False),
+    ("focalLength35mm", "35mm等效焦段", False),
+    ("sceneCaptureType", "場景類型", False),
+    ("dateTimeOriginal", "拍攝時間", False),
+    ("make", "製造商", False),
+    ("creativeStyle", "創意風格 (Sony)", True),
 ]
 
 

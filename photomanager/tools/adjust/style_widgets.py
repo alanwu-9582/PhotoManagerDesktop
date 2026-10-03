@@ -1,7 +1,6 @@
 """攝影風格分頁用的兩個元件：風格縮圖格子、iPhone 那種方形控制板。"""
 from __future__ import annotations
 
-from ...i18n import tr
 
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFontMetrics, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
@@ -78,7 +77,7 @@ class ControlPad(QWidget):
         self.setFixedSize(self.SIZE, self.SIZE)
         self.setCursor(Qt.CursorShape.CrossCursor)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.setToolTip(tr("上下：色調（往上陰影變亮、往下陰影變深）\n左右：色彩（往左淡、往右濃）\n雙擊回到中間"))
+        self.setToolTip("上下：色調（往上陰影變亮、往下陰影變深）\n左右：色彩（往左淡、往右濃）\n雙擊回到中間")
 
     def sizeHint(self):
         return QSize(self.SIZE, self.SIZE)
@@ -128,17 +127,10 @@ class ControlPad(QWidget):
         # 邊上的字
         p.setFont(theme.font(11, 600))
         p.setPen(theme.c("secondary"))
-        p.drawText(QRectF(0, 1, self.SIZE, 12), Qt.AlignmentFlag.AlignHCenter, tr("亮"))
-        p.drawText(QRectF(0, self.SIZE - 13, self.SIZE, 12), Qt.AlignmentFlag.AlignHCenter, tr("深"))
-        for text, x, ang in ((tr("淡"), 7, -90), (tr("濃"), self.SIZE - 7, 90)):
-            if len(text) == 1:                       # 中文一個字直接放；英文的字比較長，轉 90 度沿著邊寫
-                p.drawText(QRectF(x - 6, 0, 12, self.SIZE), Qt.AlignmentFlag.AlignCenter, text)
-            else:
-                p.save()
-                p.translate(x, self.SIZE / 2)
-                p.rotate(ang)
-                p.drawText(QRectF(-self.SIZE / 2, -7, self.SIZE, 14), Qt.AlignmentFlag.AlignCenter, text)
-                p.restore()
+        p.drawText(QRectF(0, 1, self.SIZE, 12), Qt.AlignmentFlag.AlignHCenter, "亮")
+        p.drawText(QRectF(0, self.SIZE - 13, self.SIZE, 12), Qt.AlignmentFlag.AlignHCenter, "深")
+        p.drawText(QRectF(1, 0, 12, self.SIZE), Qt.AlignmentFlag.AlignCenter, "淡")
+        p.drawText(QRectF(self.SIZE - 13, 0, 12, self.SIZE), Qt.AlignmentFlag.AlignCenter, "濃")
         # 圓點
         c = self._point()
         p.setPen(QPen(QColor(0, 0, 0, 90), 1))

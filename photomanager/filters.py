@@ -8,7 +8,6 @@
 """
 from __future__ import annotations
 
-from .i18n import tr
 
 import re
 
@@ -26,26 +25,26 @@ def _date(p):
 
 def _cat(p):
     if not p.cat_id:
-        return tr("未分類")
+        return "未分類"
     c = categories.by_id(p.cat_id)
     return c.name if c else None
 
 
 FILTER_FIELDS = [
-    {"key": "model", "label": tr("相機型號")},
-    {"key": "lensModel", "label": tr("鏡頭")},
-    {"key": "focalLength", "label": tr("焦段")},
-    {"key": "fNumber", "label": tr("光圈")},
-    {"key": "exposureTime", "label": tr("快門")},
+    {"key": "model", "label": "相機型號"},
+    {"key": "lensModel", "label": "鏡頭"},
+    {"key": "focalLength", "label": "焦段"},
+    {"key": "fNumber", "label": "光圈"},
+    {"key": "exposureTime", "label": "快門"},
     {"key": "iso", "label": "ISO", "format": lambda v: f"ISO {v}"},
-    {"key": "whiteBalance", "label": tr("白平衡")},
-    {"key": "exposureProgram", "label": tr("曝光模式")},
-    {"key": "creativeStyle", "label": tr("創意風格")},
-    {"key": "make", "label": tr("製造商")},
-    {"key": "__date", "label": tr("拍攝日期"), "value": _date},
-    {"key": "__ext", "label": tr("檔案格式"), "value": lambda p: p.ext or None},
-    {"key": "__cat", "label": tr("分類"), "value": _cat},
-    {"key": "__dir", "label": tr("資料夾"), "value": lambda p: p.folder or tr("（最上層）")},
+    {"key": "whiteBalance", "label": "白平衡"},
+    {"key": "exposureProgram", "label": "曝光模式"},
+    {"key": "creativeStyle", "label": "創意風格"},
+    {"key": "make", "label": "製造商"},
+    {"key": "__date", "label": "拍攝日期", "value": _date},
+    {"key": "__ext", "label": "檔案格式", "value": lambda p: p.ext or None},
+    {"key": "__cat", "label": "分類", "value": _cat},
+    {"key": "__dir", "label": "資料夾", "value": lambda p: p.folder or "（最上層）"},
 ]
 _BY_KEY = {f["key"]: f for f in FILTER_FIELDS}
 

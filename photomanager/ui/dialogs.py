@@ -5,7 +5,6 @@ HIG 的警示框：粗體標題、一段說明、右下角按鈕 —— 取消�
 """
 from __future__ import annotations
 
-from ..i18n import tr
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QVBoxLayout, QWidget, QScrollArea
@@ -86,11 +85,11 @@ class _Alert(QDialog):
 
 
 def confirm(parent: QWidget, title: str, message: str = "", tone="info",
-            confirm_text=tr("確定"), cancel_text=tr("取消")) -> bool:
+            confirm_text="確定", cancel_text="取消") -> bool:
     return _Alert(parent, title, message, tone, confirm_text, cancel_text, True).exec() == QDialog.DialogCode.Accepted
 
 
-def alert(parent: QWidget, title: str, message: str = "", tone="info", confirm_text=tr("好")):
+def alert(parent: QWidget, title: str, message: str = "", tone="info", confirm_text="好"):
     _Alert(parent, title, message, tone, confirm_text, "", False).exec()
 
 

@@ -5,13 +5,12 @@
 """
 from __future__ import annotations
 
-from .i18n import tr
 
 import sys
 import threading
 
 from PySide6.QtCore import QObject, QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QMainWindow, QMenu, QStackedWidget, QVBoxLayout,
                                QWidget)
 
@@ -21,7 +20,7 @@ from .engine.library import library
 from .state import state
 from .ui import icons, theme
 from .ui.shell import Sidebar, SourceBar, SourceController, StatusBar
-from .ui.widgets import init_toast, label, notify, refresh_icons
+from .ui.widgets import init_toast, label, refresh_icons
 
 
 def _routes():
@@ -36,19 +35,19 @@ def _routes():
     from .tools.depth_blur.page import DepthBlurPage
     from .pages.prompts import PromptsPage
     return {
-        "photos": {"label": tr("照片檢視"), "icon": "image", "group": tr("照片管理"), "page": PhotosPage},
-        "stats": {"label": tr("統計數據"), "icon": "chart", "group": tr("照片管理"), "page": StatsPage},
-        "organize": {"label": tr("整理分類"), "icon": "layers", "group": tr("照片管理"), "page": OrganizePage},
-        "rename": {"label": tr("批次改名"), "icon": "copy", "group": tr("照片管理"), "page": RenamePage},
+        "photos": {"label": "照片檢視", "icon": "image", "group": "照片管理", "page": PhotosPage},
+        "stats": {"label": "統計數據", "icon": "chart", "group": "照片管理", "page": StatsPage},
+        "organize": {"label": "整理分類", "icon": "layers", "group": "照片管理", "page": OrganizePage},
+        "rename": {"label": "批次改名", "icon": "copy", "group": "照片管理", "page": RenamePage},
         # 照片編輯：以後的新功能依種類放進既有的頁面（分頁 / ToolGroup），或在這裡加一頁
-        "edit": {"label": tr("裁切旋轉"), "icon": "crop", "group": tr("照片編輯"), "page": PhotoEditPage},
-        "adjust": {"label": tr("調整"), "icon": "adjust", "group": tr("照片編輯"), "page": AdjustPage},
-        "blur": {"label": tr("景深模糊"), "icon": "aperture", "group": tr("照片編輯"), "page": DepthBlurPage},
-        "frame": {"label": tr("相框與色卡"), "icon": "frame", "group": tr("照片編輯"), "page": FramesPage},
+        "edit": {"label": "裁切旋轉", "icon": "crop", "group": "照片編輯", "page": PhotoEditPage},
+        "adjust": {"label": "調整", "icon": "adjust", "group": "照片編輯", "page": AdjustPage},
+        "blur": {"label": "景深模糊", "icon": "aperture", "group": "照片編輯", "page": DepthBlurPage},
+        "frame": {"label": "相框與色卡", "icon": "frame", "group": "照片編輯", "page": FramesPage},
         # 不是編輯照片的工具（不吃照片），所以不會出現在「用編輯工具開啟」的選單裡
-        "prompts": {"label": tr("AI 風格提示詞"), "icon": "sparkle", "group": tr("照片編輯"), "page": PromptsPage,
+        "prompts": {"label": "AI 風格提示詞", "icon": "sparkle", "group": "照片編輯", "page": PromptsPage,
                     "photo_tool": False},
-        "settings": {"label": tr("設定"), "icon": "sliders", "group": tr("其他"), "page": SettingsPage},
+        "settings": {"label": "設定", "icon": "sliders", "group": "其他", "page": SettingsPage},
     }
 
 
@@ -144,7 +143,7 @@ class MainWindow(QMainWindow):
         return self.pages.get(self.current)
 
     def edit_routes(self):
-        return [(k, r) for k, r in self.routes.items() if r["group"] == tr("照片編輯") and r.get("photo_tool", True)]
+        return [(k, r) for k, r in self.routes.items() if r["group"] == "照片編輯" and r.get("photo_tool", True)]
 
     def open_in_tool(self, key, photo):
         """把這張設成「目前編輯中的照片」，再換到那個工具。"""
@@ -207,7 +206,7 @@ class MainWindow(QMainWindow):
     def theme_menu(self):
         menu = QMenu(self)
         current = config.settings.get("theme")
-        for value, text in (("system", tr("跟隨系統")), ("light", tr("淺色")), ("dark", tr("深色"))):
+        for value, text in (("system", "跟隨系統"), ("light", "淺色"), ("dark", "深色")):
             act = menu.addAction(text)
             act.setCheckable(True)
             act.setChecked(current == value)
@@ -241,18 +240,6 @@ class MainWindow(QMainWindow):
         # 匯入或重設之後，指向已不存在分類的標記要清掉，否則會變成數得到卻整理不到的幽靈標記。
         library.drop_missing_categories()
         library.stats_changed.emit()
-
-    def restart(self):
-        """重新啟動（換語言用）：先把標記與設定都存好，再開一個新的自己、關掉這一個。"""
-        from PySide6.QtCore import QProcess
-        import os
-        self.close()
-        args = list(sys.argv)
-        if getattr(sys, "frozen", False):          # 打包成 exe 的時候
-            QProcess.startDetached(sys.executable, args[1:])
-        else:
-            QProcess.startDetached(sys.executable, [os.path.abspath(args[0])] + args[1:])
-        self.app.quit()
 
     def closeEvent(self, e):
         config.settings.set("geometry", bytes(self.saveGeometry().toBase64()).decode())

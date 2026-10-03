@@ -5,7 +5,6 @@
 """
 from __future__ import annotations
 
-from ...i18n import tr
 
 import os
 import urllib.request
@@ -49,7 +48,7 @@ def download(on_progress=None, cancel=None):
         done = 0
         while True:
             if cancel and cancel():
-                raise RuntimeError(tr("已取消"))
+                raise RuntimeError("已取消")
             chunk = resp.read(1 << 16)
             if not chunk:
                 break
@@ -59,7 +58,7 @@ def download(on_progress=None, cancel=None):
                 on_progress(done, total)
     if tmp.stat().st_size < 1 << 20:
         tmp.unlink(missing_ok=True)
-        raise RuntimeError(tr("下載的檔案不完整"))
+        raise RuntimeError("下載的檔案不完整")
     os.replace(tmp, MODEL_PATH)
 
 

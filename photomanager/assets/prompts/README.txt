@@ -9,8 +9,8 @@ prompts.json 是全部提示詞的清單：
   id           唯一的名稱（英文、數字、連字號）
   folder       資料夾名稱
   file         提示詞檔名（通常是 prompt.txt）
-  title        標題（"zh-Hant" 繁中、"en" 英文）
-  description  一兩句說明（同上，兩種語言）
+  title        標題
+  description  一兩句說明
   tags         標籤，例如 poster、collage、watercolor
   language     提示詞本身是什麼語言（"en" / "zh-Hant"）
   thumbnails   參考圖檔名；留空 [] 就自動列出資料夾裡全部的圖片

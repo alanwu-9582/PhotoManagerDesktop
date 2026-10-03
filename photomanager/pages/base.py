@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
-from ..ui.widgets import label
 
 
 class Page(QWidget):

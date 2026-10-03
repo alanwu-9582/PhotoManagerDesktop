@@ -9,14 +9,13 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr, tr_value
 
 from dataclasses import dataclass
 
 from PySide6.QtCore import (QAbstractListModel, QMimeData, QModelIndex, QPoint, QPointF, QRect, QRectF,
                             QSize, Qt, QTimer, Signal, QByteArray)
 from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen, QDrag, QPixmap, QFontMetrics, QTransform
-from PySide6.QtWidgets import QAbstractItemView, QApplication, QListView, QStyledItemDelegate, QStyle
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QListView, QStyledItemDelegate
 
 from ..engine.categories import categories
 from ..engine.library import library, Photo
@@ -68,10 +67,6 @@ class PhotoModel(QAbstractListModel):
             idx = self.index(r)
             self.dataChanged.emit(idx, idx)
 
-    def touch_all(self):
-        if self.rows:
-            self.dataChanged.emit(self.index(0), self.index(len(self.rows) - 1))
-
     def rowCount(self, parent=QModelIndex()):  # noqa: N802
         return 0 if parent.isValid() else len(self.rows)
 
@@ -120,15 +115,6 @@ def draw_cover(p: QPainter, pm: QPixmap, rect: QRectF):
     sw, sh = rect.width() / k, rect.height() / k
     src = QRectF((pw - sw) / 2 * dpr, (ph - sh) / 2 * dpr, sw * dpr, sh * dpr)
     p.drawPixmap(rect, pm, src)
-
-
-def draw_contain(p: QPainter, pm: QPixmap, rect: QRectF):
-    dpr = pm.devicePixelRatio()
-    pw, ph = pm.width() / dpr, pm.height() / dpr
-    k = min(rect.width() / pw, rect.height() / ph)
-    w, h = pw * k, ph * k
-    p.drawPixmap(QRectF(rect.x() + (rect.width() - w) / 2, rect.y() + (rect.height() - h) / 2, w, h),
-                 pm, QRectF(0, 0, pm.width(), pm.height()))
 
 
 def fill_image(p: QPainter, pm: QPixmap, rect: QRectF, path: QPainterPath, cover=True):
@@ -279,7 +265,7 @@ class CardDelegate(QStyledItemDelegate):
         if not rows:
             p.setPen(theme.c("tertiary"))
             p.drawText(QRectF(x, y, w, self.ROW_H), Qt.AlignmentFlag.AlignVCenter,
-                       tr("讀取中…") if photo.info_state == "idle" else tr("無 EXIF"))
+                       "讀取中…" if photo.info_state == "idle" else "無 EXIF")
             return
         for lb, val in rows:
             p.setPen(theme.c("secondary"))
@@ -288,7 +274,7 @@ class CardDelegate(QStyledItemDelegate):
             vw = w * 0.58
             p.drawText(QRectF(x + w * 0.42, y, vw, self.ROW_H),
                        Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
-                       fm.elidedText(tr_value(val), Qt.TextElideMode.ElideRight, int(vw)))
+                       fm.elidedText(str(val), Qt.TextElideMode.ElideRight, int(vw)))
             y += self.ROW_H
 
     def paint_row(self, p: QPainter, opt, index, photo):
@@ -322,7 +308,7 @@ class CardDelegate(QStyledItemDelegate):
         p.setPen(theme.c("secondary"))
         fm = QFontMetrics(p.font())
         p.drawText(QRectF(x, r.y() + 32, name_w, 18), Qt.AlignmentFlag.AlignVCenter,
-                   fm.elidedText(photo.folder or tr("（最上層）"), Qt.TextElideMode.ElideMiddle, int(name_w)))
+                   fm.elidedText(photo.folder or "（最上層）", Qt.TextElideMode.ElideMiddle, int(name_w)))
         x += name_w + 16
         fields = state.enabled_fields()
         info = photo.info or {}
@@ -336,7 +322,7 @@ class CardDelegate(QStyledItemDelegate):
                     p.drawText(QRectF(x, r.y() + 10, col_w - 8, 18), Qt.AlignmentFlag.AlignVCenter,
                                fm.elidedText(lb, Qt.TextElideMode.ElideRight, int(col_w - 8)))
                     v = info.get(k)
-                    text = tr_value(v) if v is not None else ("…" if photo.info_state == "idle" else "—")
+                    text = str(v) if v is not None else ("…" if photo.info_state == "idle" else "—")
                     p.setFont(theme.font("callout"))
                     p.setPen(theme.c("label") if v is not None else theme.c("tertiary"))
                     fm = QFontMetrics(p.font())

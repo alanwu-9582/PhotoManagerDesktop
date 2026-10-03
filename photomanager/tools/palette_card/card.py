@@ -6,7 +6,6 @@
 """
 from __future__ import annotations
 
-from ...i18n import tr
 
 import math
 
@@ -15,11 +14,11 @@ from PySide6.QtGui import (QColor, QFont, QFontMetricsF, QImage, QLinearGradient
 
 from ...engine.image import pil_to_qimage, qimage_to_pil
 from ...ui import theme
-from .palette import contrast, luminance, shade, to_hex
+from .palette import contrast, luminance, shade
 
-SIZES = [("1080x1350", tr("4:5 直式"), 1080, 1350), ("1080x1440", tr("3:4 明信片"), 1080, 1440),
-         ("1080x1080", tr("1:1 方形"), 1080, 1080), ("1080x1920", tr("9:16 限時動態"), 1080, 1920)]
-LAYOUTS = [("glass", tr("玻璃色卡")), ("caption", tr("標題留白")), ("strip", tr("底部色條"))]
+SIZES = [("1080x1350", "4:5 直式", 1080, 1350), ("1080x1440", "3:4 明信片", 1080, 1440),
+         ("1080x1080", "1:1 方形", 1080, 1080), ("1080x1920", "9:16 限時動態", 1080, 1920)]
+LAYOUTS = [("glass", "玻璃色卡"), ("caption", "標題留白"), ("strip", "底部色條")]
 
 
 def clamp(v, lo, hi):

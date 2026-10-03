@@ -5,14 +5,12 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr
 
-from PySide6.QtCore import (QEasingCurve, QPoint, QPointF, QPropertyAnimation, QRect, QRectF, QSize, Qt,
-                            QTimer, Signal, Property)
+from PySide6.QtCore import QPoint, QPointF, QPropertyAnimation, QRect, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFontMetrics
 from PySide6.QtWidgets import (QAbstractButton, QColorDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel,
-                               QLayout, QPushButton, QSizePolicy, QSlider, QToolButton, QVBoxLayout,
-                               QWidget, QWidgetItem, QStyle, QStyleOptionSlider, QGraphicsOpacityEffect)
+                               QLayout, QPushButton, QSizePolicy, QSlider, QToolButton, QVBoxLayout, QWidget, QStyle,
+                               QStyleOptionSlider, QGraphicsOpacityEffect)
 
 from . import icons, theme
 
@@ -60,12 +58,6 @@ def icon_button(name: str, tip: str, on_click=None, size=16, checkable=False) ->
     if on_click:
         b.clicked.connect(lambda *_: on_click())
     return b
-
-
-def hline() -> QFrame:
-    f = QFrame()
-    f.setProperty("hairline", True)
-    return f
 
 
 def vline() -> QFrame:
@@ -126,18 +118,16 @@ def refresh_icons(root: QWidget):
         b.setIcon(icons.icon(name, color, b.iconSize().width()))
 
 
-def repolish(w: QWidget):
-    w.style().unpolish(w)
-    w.style().polish(w)
-    w.update()
-
-
 # ============================================================ 分段控制
 class Segmented(QWidget):
-    """HIG 的分段控制：灰色軌道，選中的那一段是一塊浮起來的白底。"""
+    """HIG 的分段控制：灰色軌道，選中的那一段是一塊浮起來的白底。
+
+    放在設定欄、分頁列裡的會撐滿整列（並排兩個欄位時就是各半列），所以上下的寬度都對齊；
+    compact 的（工具列裡、跟其他按鈕排在同一行的）維持剛好的寬度。
+    """
     changed = Signal(str)
 
-    def __init__(self, options, value=None, parent=None, compact=False):
+    def __init__(self, options, value=None, parent=None, compact=False, expand=None):
         super().__init__(parent)
         self._options = [(o[0], o[1]) for o in options]
         self._value = value if value is not None else (self._options[0][0] if self._options else None)
@@ -146,7 +136,9 @@ class Segmented(QWidget):
         self.setMouseTracking(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
-        self.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        expand = not compact if expand is None else expand
+        self.setSizePolicy(QSizePolicy.Policy.Expanding if expand else QSizePolicy.Policy.Maximum,
+                           QSizePolicy.Policy.Fixed)
         self.setFixedHeight(theme.CONTROL_H)
 
     def value(self):
@@ -485,7 +477,7 @@ class ColorButton(QPushButton):
         self.update()
 
     def _pick(self):
-        col = QColorDialog.getColor(QColor(self._value), self.window(), tr("選擇顏色"))
+        col = QColorDialog.getColor(QColor(self._value), self.window(), "選擇顏色")
         if col.isValid():
             self._value = col.name()
             self.update()
@@ -706,7 +698,7 @@ def notify(text, tone="info"):
 
 # ============================================================ 空狀態
 class EmptyState(QWidget):
-    def __init__(self, glyph="image", title=tr("尚未載入照片"), parent=None):
+    def __init__(self, glyph="image", title="尚未載入照片", parent=None):
         super().__init__(parent)
         self.icon = QLabel()
         self.icon.setAlignment(Qt.AlignmentFlag.AlignCenter)

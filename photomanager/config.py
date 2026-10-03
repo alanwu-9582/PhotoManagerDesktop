@@ -79,7 +79,6 @@ class Settings:
         "photoDisplay": "card",  # card | list
         "photoGroup": "none",    # 照片檢視的群組方式
         "renamePresets": None,   # [{name, pattern, start, pad, case, find, replace}]
-        "language": "zh-Hant",   # 顯示語言：zh-Hant | en
     }
 
     def __init__(self):

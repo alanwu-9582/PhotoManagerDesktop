@@ -7,16 +7,14 @@
 """
 from __future__ import annotations
 
-from ...i18n import tr
 
 import os
 import tempfile
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QGuiApplication, QImage, QKeySequence, QPainter, QPen, QPixmap, QShortcut
+from PySide6.QtGui import QColor, QGuiApplication, QKeySequence, QPainter, QPen, QPixmap, QShortcut
 from PySide6.QtWidgets import QComboBox, QLineEdit, QPushButton, QWidget
 
-from ...engine import image as imgmod
 from ...ui import theme
 from ...ui.widgets import FlowLayout, Segmented, button, field, notify, row, section
 from ..common import Stage, ToolPage, safe_name
@@ -144,7 +142,7 @@ class CardStage(Stage):
 
 
 class PaletteCardPage(ToolPage):
-    title = tr("照片色卡")
+    title = "照片色卡"
     png_only = True
 
     def __init__(self, window):
@@ -155,10 +153,10 @@ class PaletteCardPage(ToolPage):
         self.chips_host = QWidget()
         self.chips = FlowLayout(self.chips_host, spacing=6)
         self.meta.layout().insertWidget(0, self.chips_host, 1)
-        self.actions.addWidget(button(tr("複製色碼"), None, "copy", tr("把全部色碼複製到剪貼簿"), self.copy_all))
-        self.actions.addWidget(button(tr("重設位置"), None, "reset", tr("面板與照片回到預設位置"), self.reset_placement))
-        self.add_output_buttons(tr("輸出明信片（Ctrl+S）"))
-        self.save_btn.setText(tr("儲存 PNG…"))
+        self.actions.addWidget(button("複製色碼", None, "copy", "把全部色碼複製到剪貼簿", self.copy_all))
+        self.actions.addWidget(button("重設位置", None, "reset", "面板與照片回到預設位置", self.reset_placement))
+        self.add_output_buttons("輸出明信片（Ctrl+S）")
+        self.save_btn.setText("儲存 PNG…")
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(50)
@@ -177,7 +175,7 @@ class PaletteCardPage(ToolPage):
     def _build(self):
         F = self.form
         st = self.st
-        F.addWidget(section(tr("版型")))
+        F.addWidget(section("版型"))
         lay = Segmented(LAYOUTS, st["layout"])
         lay.changed.connect(lambda v: self._set("layout", v))
         F.addWidget(lay)
@@ -187,22 +185,22 @@ class PaletteCardPage(ToolPage):
         size.currentIndexChanged.connect(lambda i: self._set("size", SIZES[i]))
         count = QComboBox()
         for n in COUNTS:
-            count.addItem(tr('{0} 色').format(n), n)
+            count.addItem(f'{n} 色', n)
         count.setCurrentIndex(COUNTS.index(6))
         count.currentIndexChanged.connect(lambda i: (st.__setitem__("count", COUNTS[i]), self.recolor()))
-        F.addWidget(row(field(tr("尺寸"), size), field(tr("顏色數量"), count)))
-        snap = Segmented([("raw", tr("原色")), ("snap", tr("整齊色碼"))], "raw")
+        F.addWidget(row(field("尺寸", size), field("顏色數量", count)))
+        snap = Segmented([("raw", "原色"), ("snap", "整齊色碼")], "raw")
         snap.changed.connect(lambda v: (st.__setitem__("snap", v == "snap"), self.recolor()))
-        bg = Segmented([("auto", tr("自動")), ("light", tr("淺")), ("dark", tr("深")), ("none", tr("無"))], "auto")
+        bg = Segmented([("auto", "自動"), ("light", "淺"), ("dark", "深"), ("none", "無")], "auto")
         bg.changed.connect(lambda v: self._set("background", v))
-        F.addWidget(row(field(tr("色碼"), snap), field(tr("底色"), bg)))
+        F.addWidget(row(field("色碼", snap), field("底色", bg)))
         title = QLineEdit()
         title.setPlaceholderText("Title")
         title.textEdited.connect(lambda v: self._set("title", v))
         sub = QLineEdit()
         sub.setPlaceholderText("Subtitle")
         sub.textEdited.connect(lambda v: self._set("subtitle", v))
-        F.addWidget(row(field(tr("標題"), title), field(tr("副標"), sub)))
+        F.addWidget(row(field("標題", title), field("副標", sub)))
         F.addStretch(1)
 
     def _set(self, key, value):
@@ -232,14 +230,14 @@ class PaletteCardPage(ToolPage):
         for c in self.st["colors"]:
             b = QPushButton(c["hex"])
             b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setToolTip(tr('複製 {0}').format(c['hex']))
+            b.setToolTip('複製 {0}'.format(c['hex']))
             fg = "#111" if (0.2126 * c["rgb"][0] + 0.7152 * c["rgb"][1] + 0.0722 * c["rgb"][2]) > 150 else "#fff"
             b.setStyleSheet(f"QPushButton {{ background: {c['hex']}; color: {fg}; border-radius: 6px; padding: 5px 10px;"
                             f" font-family: {theme.MONO_FAMILIES[0]}; font-weight: 600; }}")
             b.clicked.connect(lambda _=False, h=c["hex"]: self.copy_one(h))
             self.chips.addWidget(b)
         n = len(self.st["colors"])
-        self.set_status(tr('只挑得出 {0} 色').format(n) if n < self.st["count"] else "")
+        self.set_status(f'只挑得出 {n} 色' if n < self.st["count"] else "")
         self.schedule()
 
     # ---------------------------------------------------------------- 畫
@@ -254,7 +252,7 @@ class PaletteCardPage(ToolPage):
         try:
             img = render_card(self.st)
         except Exception as e:  # noqa: BLE001
-            self.set_status(tr('畫不出來: {0}').format(e), "error")
+            self.set_status(f'畫不出來: {e}', "error")
             return
         self.stage.pix = QPixmap.fromImage(img)
         self.stage.update()
@@ -266,14 +264,14 @@ class PaletteCardPage(ToolPage):
 
     def copy_one(self, hexv):
         QGuiApplication.clipboard().setText(hexv)
-        notify(tr('已複製 {0}').format(hexv), "success")
+        notify(f'已複製 {hexv}', "success")
 
     def copy_all(self):
         if not self.st["colors"]:
-            notify(tr("還沒有照片"), "warning")
+            notify("還沒有照片", "warning")
             return
         QGuiApplication.clipboard().setText("\n".join(c["hex"] for c in self.st["colors"]))
-        notify(tr("已複製色碼"), "success")
+        notify("已複製色碼", "success")
 
     def paste(self):
         img = QGuiApplication.clipboard().image()
@@ -295,7 +293,7 @@ class PaletteCardPage(ToolPage):
         st = dict(self.st)
 
         def job(progress):
-            progress(0.2, tr("繪製明信片"))
+            progress(0.2, "繪製明信片")
             return render_card(st)
 
         return job

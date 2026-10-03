@@ -7,15 +7,14 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr
 
 import time
 from dataclasses import dataclass, field
 
 from PySide6.QtCore import QObject, Signal
 
-KIND_LABEL = {"organize": tr("整理"), "mark": tr("標記"), "rename": tr("改名"), "export": tr("輸出"),
-              "zip": tr("打包"), "settings": tr("設定")}
+KIND_LABEL = {"organize": "整理", "mark": "標記", "rename": "改名", "export": "輸出",
+              "zip": "打包", "settings": "設定"}
 MERGE_SECONDS = 120
 
 
@@ -49,15 +48,15 @@ class History(QObject):
     def mark(self, name: str, category: str | None):
         """一張照片被標記（category=None 是清除）。連續的標記併成一筆。"""
         now = time.time()
-        text = f"→ {category}" if category else tr("清除標記")
+        text = f"→ {category}" if category else "清除標記"
         last = self.entries[-1] if self.entries else None
         if last and last.kind == "mark" and now - last.updated < MERGE_SECONDS:
             # 同一張改來改去只留最後一次
             last.items = [it for it in last.items if it[0] != name] + [(name, text)]
             last.updated = now
-            last.title = tr('標記 {0} 張').format(len(last.items))
+            last.title = f'標記 {len(last.items)} 張'
         else:
-            self.entries.append(Entry("mark", tr("標記 1 張"), [(name, text)]))
+            self.entries.append(Entry("mark", "標記 1 張", [(name, text)]))
         self.changed.emit()
 
     def clear(self):

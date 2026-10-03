@@ -5,14 +5,13 @@
 """
 from __future__ import annotations
 
-from ...i18n import tr
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QImage, QPainter, QPainterPath, QPen
 
 from ...ui import theme
 
-MODES = [("bottom", tr("下框")), ("top", tr("上框")), ("both", tr("上下框")), ("full", tr("全框")), ("polaroid", tr("拍立得"))]
+MODES = [("bottom", "下框"), ("top", "上框"), ("both", "上下框"), ("full", "全框"), ("polaroid", "拍立得")]
 MODE_PAD = {"bottom": 0, "top": 0, "both": 0, "full": 0.03, "polaroid": 0.025}
 
 DEFAULTS = {

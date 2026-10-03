@@ -5,18 +5,16 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr
 
 import os
 import threading
 
 from PySide6.QtCore import QObject, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QAction
-from PySide6.QtWidgets import (QAbstractButton, QFileDialog, QHBoxLayout, QLabel, QMenu,
-                               QProgressBar, QPushButton, QSizePolicy, QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtGui import QPainter, QPainterPath
+from PySide6.QtWidgets import (QAbstractButton, QFileDialog, QLabel, QMenu, QProgressBar, QToolButton, QVBoxLayout,
+                               QWidget)
 
 from .. import config
-from ..engine import image as imgmod
 from ..engine.categories import categories
 from ..engine.library import library
 from ..state import fmt_bytes, state
@@ -101,8 +99,8 @@ class Sidebar(QWidget):
             lay.addWidget(item)
         lay.addStretch(1)
 
-        self.toggle = icon_button("sidebar", tr("收合側邊欄"), self.toggle_collapsed, size=17)
-        self.theme_btn = icon_button("palette", tr("外觀"), None, size=17)
+        self.toggle = icon_button("sidebar", "收合側邊欄", self.toggle_collapsed, size=17)
+        self.theme_btn = icon_button("palette", "外觀", None, size=17)
         foot = hbox(self.toggle, None, self.theme_btn, margins=(12, 0, 12, 0))
         lay.addLayout(foot)
         self.collapsed = False
@@ -125,7 +123,7 @@ class Sidebar(QWidget):
         for w in (self.brand_name, self.brand_sub, self.theme_btn, *self.sections):
             w.setVisible(not on)
         self.brand.setContentsMargins(16, 0, 10, 14)
-        self.toggle.setToolTip(tr("展開側邊欄") if on else tr("收合側邊欄"))
+        self.toggle.setToolTip("展開側邊欄" if on else "收合側邊欄")
         config.settings.set("sidebarCollapsed", on)
 
 
@@ -143,7 +141,7 @@ class SourceController(QObject):
         self.win = window
         self._relay = _ScanRelay()
         self._relay.done.connect(self._on_scanned)
-        self._relay.progress.connect(lambda n: library.progress.emit(0, 0, tr('掃描中… {0} 張').format(n)))
+        self._relay.progress.connect(lambda n: library.progress.emit(0, 0, f'掃描中… {n} 張'))
         self._busy = False
 
     def skip_folders(self, recursive):
@@ -152,7 +150,7 @@ class SourceController(QObject):
     def open_folder(self, path=None):
         if not path:
             start = library.root or config.settings.get("lastFolder") or os.path.expanduser("~/Pictures")
-            path = QFileDialog.getExistingDirectory(self.win, tr("開啟照片資料夾"), start)
+            path = QFileDialog.getExistingDirectory(self.win, "開啟照片資料夾", start)
             if not path:
                 return
         self.scan(path, bool(config.settings.get("recursive")))
@@ -165,10 +163,10 @@ class SourceController(QObject):
         if self._busy:
             return
         if not os.path.isdir(path):
-            dialogs.alert(self.win, tr("無法開啟資料夾"), tr('找不到「{0}」。').format(path), tone="danger")
+            dialogs.alert(self.win, "無法開啟資料夾", f'找不到「{path}」。', tone="danger")
             return
         self._busy = True
-        library.progress.emit(0, 0, tr("掃描中…"))
+        library.progress.emit(0, 0, "掃描中…")
         skip = self.skip_folders(recursive)
 
         def run():
@@ -184,21 +182,21 @@ class SourceController(QObject):
         self._busy = False
         library.progress_done.emit()
         if error is not None:
-            dialogs.alert(self.win, tr("無法開啟資料夾"), str(error), tone="danger")
+            dialogs.alert(self.win, "無法開啟資料夾", str(error), tone="danger")
             return
         state.selected_id = photos[0].id if photos else None
         state.set_editor_photo(None)
         restored = library.set_folder(path, photos, recursive)
         self.win.source_bar.refresh_recent()
         if restored:
-            notify(tr('已還原 {0} 張標記').format(restored))
+            notify(f'已還原 {restored} 張標記')
         elif not photos:
-            notify(tr("這個資料夾裡沒有 JPEG / TIFF / HEIC 照片"), "warning")
+            notify("這個資料夾裡沒有 JPEG / TIFF / HEIC 照片", "warning")
 
     def pick_files(self):
         start = library.root or config.settings.get("lastFolder") or os.path.expanduser("~/Pictures")
-        paths, _ = QFileDialog.getOpenFileNames(self.win, tr("選擇照片"), start,
-                                                tr("照片 (*.jpg *.jpeg *.tif *.tiff *.heic *.heif)"))
+        paths, _ = QFileDialog.getOpenFileNames(self.win, "選擇照片", start,
+                                                "照片 (*.jpg *.jpeg *.tif *.tiff *.heic *.heif)")
         if paths:
             self.add_files(paths)
 
@@ -211,8 +209,8 @@ class SourceController(QObject):
     def clear(self):
         if not library.photos:
             return
-        if not dialogs.confirm(self.win, tr('清除 {0} 張照片？').format(len(library.photos)), tr("只清畫面與標記，不會刪檔案。"),
-                               tone="danger", confirm_text=tr("清除畫面")):
+        if not dialogs.confirm(self.win, f'清除 {len(library.photos)} 張照片？', "只清畫面與標記，不會刪檔案。",
+                               tone="danger", confirm_text="清除畫面"):
             return
         library.clear()
         state.selected_id = None
@@ -227,22 +225,22 @@ class SourceBar(QWidget):
         super().__init__(parent)
         self.setObjectName("SourceBar")
         self.ctrl = ctrl
-        self.open_btn = button(tr("開啟資料夾"), "primary", "folder", tr("開啟照片資料夾（Ctrl+O）"), ctrl.open_folder)
+        self.open_btn = button("開啟資料夾", "primary", "folder", "開啟照片資料夾（Ctrl+O）", ctrl.open_folder)
         self.recent_btn = QToolButton()
         self.recent_btn.setProperty("kind", "icon")
         self.recent_btn.setIcon(icons.icon("chevron-down", theme.T["label"], 14))
         self.recent_btn._icon_name = "chevron-down"
-        self.recent_btn.setToolTip(tr("最近開過的資料夾"))
+        self.recent_btn.setToolTip("最近開過的資料夾")
         self.recent_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.recent_menu = QMenu(self)
         self.recent_btn.setMenu(self.recent_menu)
-        self.recursive = Flag(tr("含子資料夾"))
-        self.recursive.setToolTip(tr("連同子資料夾裡的照片一起讀入"))
+        self.recursive = Flag("含子資料夾")
+        self.recursive.setToolTip("連同子資料夾裡的照片一起讀入")
         self.recursive.setChecked(bool(config.settings.get("recursive")))
         self.recursive.toggled.connect(lambda on: config.settings.set("recursive", on))
-        self.files_btn = button(tr("選擇檔案"), None, "files", tr("選擇幾張照片（Ctrl+Shift+O）"), ctrl.pick_files)
-        self.rescan_btn = icon_button("refresh", tr("重新掃描（F5）"), ctrl.rescan)
-        self.clear_btn = icon_button("x", tr("清除畫面（不會刪檔案）"), ctrl.clear)
+        self.files_btn = button("選擇檔案", None, "files", "選擇幾張照片（Ctrl+Shift+O）", ctrl.pick_files)
+        self.rescan_btn = icon_button("refresh", "重新掃描（F5）", ctrl.rescan)
+        self.clear_btn = icon_button("x", "清除畫面（不會刪檔案）", ctrl.clear)
         self.setLayout(hbox(self.open_btn, self.recent_btn, 4, self.recursive, 8, vline(), 8, self.files_btn,
                             6, self.rescan_btn, self.clear_btn, spacing=4))
         self.refresh_recent()
@@ -257,7 +255,7 @@ class SourceBar(QWidget):
         self.recent_menu.clear()
         recent = [p for p in config.settings.get("recentFolders") or [] if os.path.isdir(p)]
         if not recent:
-            act = self.recent_menu.addAction(tr("沒有最近的資料夾"))
+            act = self.recent_menu.addAction("沒有最近的資料夾")
             act.setEnabled(False)
         for path in recent:
             name = os.path.basename(path.rstrip("\\/")) or path
@@ -266,7 +264,7 @@ class SourceBar(QWidget):
             act.triggered.connect(lambda _=False, p=path: self.ctrl.scan(p, self.recursive.isChecked()))
         if recent:
             self.recent_menu.addSeparator()
-            clear = self.recent_menu.addAction(tr("清除清單"))
+            clear = self.recent_menu.addAction("清除清單")
             clear.triggered.connect(self._clear_recent)
 
     def _clear_recent(self):
@@ -294,7 +292,7 @@ class StatusBar(QWidget):
         self.cancel.setProperty("kind", "icon")
         self.cancel.setIcon(icons.icon("x", theme.T["secondary"], 12))
         self.cancel._icon_name = "x"
-        self.cancel.setToolTip(tr("停止"))
+        self.cancel.setToolTip("停止")
         self.cancel.clicked.connect(library.cancel_scan)
         self.cancel.hide()
         self.setLayout(hbox(self.text, None, self.prog, self.bar, self.cancel, spacing=8, margins=(16, 0, 12, 0)))
@@ -316,12 +314,12 @@ class StatusBar(QWidget):
 
     def sync(self):
         if not library.mode:
-            self.text.setText(tr("尚未選擇照片來源"))
+            self.text.setText("尚未選擇照片來源")
             return
         s = library.stats()
-        where = library.root_name if library.mode == "folder" else tr("選擇的檔案")
-        parts = [where, tr('{0:,} 張').format(s['total']), f"EXIF {s['analysed']:,}/{s['total']:,}",
-                 tr('已標記 {0:,}').format(s['marked']), tr('已整理 {0:,}').format(s['organized'])]
+        where = library.root_name if library.mode == "folder" else "選擇的檔案"
+        parts = [where, '{0:,} 張'.format(s['total']), f"EXIF {s['analysed']:,}/{s['total']:,}",
+                 '已標記 {0:,}'.format(s['marked']), '已整理 {0:,}'.format(s['organized'])]
         if s["bytes"]:
             parts.append(fmt_bytes(s["bytes"]))
         self.text.setText("   ·   ".join(parts))

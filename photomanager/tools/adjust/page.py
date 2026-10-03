@@ -8,7 +8,6 @@
 """
 from __future__ import annotations
 
-from ...i18n import tr
 
 import math
 import threading
@@ -19,8 +18,7 @@ from PySide6.QtGui import QColor, QImage, QKeySequence, QPainter, QPainterPath, 
 from PySide6.QtWidgets import QComboBox, QGridLayout, QWidget
 
 from ...ui import theme
-from ...ui.widgets import (ParamSlider, Segmented, SliderField, button, field, hbox, label, notify, row, section, vbox,
-                           wrap)
+from ...ui.widgets import ParamSlider, Segmented, SliderField, button, field, hbox, label, row, section, vbox, wrap
 from ..common import Stage, ToolPage, safe_name
 from ..depth_blur.page import qimage_to_rgb, rgb_to_qimage
 from . import develop as D
@@ -31,10 +29,10 @@ PREVIEW_EDGE = 1000
 DRAFT_EDGE = 520
 HANDLE = 8
 ROT_GAP = 26          # 旋轉把手離形狀邊緣多遠（像素）
-SHAPES = [("ellipse", tr("橢圓")), ("rect", tr("矩形")), ("beam", tr("光帶"))]
+SHAPES = [("ellipse", "橢圓"), ("rect", "矩形"), ("beam", "光帶")]
 
-HUE_NAMES = {"red": tr("紅色"), "orange": tr("橙色"), "yellow": tr("黃色"), "green": tr("綠色"), "aqua": tr("水藍色"),
-             "blue": tr("藍色"), "purple": tr("紫色"), "magenta": tr("洋紅色")}
+HUE_NAMES = {"red": "紅色", "orange": "橙色", "yellow": "黃色", "green": "綠色", "aqua": "水藍色",
+             "blue": "藍色", "purple": "紫色", "magenta": "洋紅色"}
 
 
 def hue_hex(h, s=1.0, v=1.0):
@@ -263,7 +261,7 @@ class AdjustStage(Stage):
 
 # ============================================================ 頁面
 class AdjustPage(ToolPage):
-    title = tr("調整")
+    title = "調整"
     scopes = True
     compare = True
 
@@ -287,7 +285,7 @@ class AdjustPage(ToolPage):
         self._full_timer.setInterval(200)
         self._full_timer.timeout.connect(lambda: self._render("full"))
         self.sliders: dict[str, ParamSlider] = {}
-        self.add_output_buttons(tr("用原尺寸輸出調整後的照片（Ctrl+S）"))
+        self.add_output_buttons("用原尺寸輸出調整後的照片（Ctrl+S）")
         self._build()
         dele = QShortcut(QKeySequence(Qt.Key.Key_Delete), self)
         dele.activated.connect(self.remove_spot)
@@ -306,33 +304,33 @@ class AdjustPage(ToolPage):
         return s
 
     def _build(self):
-        tabs = self.add_tabs([("basic", tr("基本")), ("style", tr("風格")), ("color", tr("色彩")),
-                              ("effects", tr("效果")), ("spot", tr("聚光燈"))])
+        tabs = self.add_tabs([("basic", "基本"), ("style", "風格"), ("color", "色彩"),
+                              ("effects", "效果"), ("spot", "聚光燈")])
         self._build_style(tabs["style"])
         B = tabs["basic"]
-        B.addWidget(section(tr("白平衡")))
-        self._slider(B, "temp", tr("色溫"), gradient=["#3b78d8", "#d8d8d8", "#e2b23c"])
-        self._slider(B, "tint", tr("色調"), gradient=["#3fae49", "#d8d8d8", "#c74bc5"])
-        head = hbox(section(tr("色調")), None,
-                    button(tr("自動"), None, None, tr("依直方圖自動調整曝光、亮部、陰影、白色、黑色"), self.auto),
-                    button(tr("全部重設"), None, "reset", tr("所有調整回到預設值"), self.reset_all), spacing=6)
+        B.addWidget(section("白平衡"))
+        self._slider(B, "temp", "色溫", gradient=["#3b78d8", "#d8d8d8", "#e2b23c"])
+        self._slider(B, "tint", "色調", gradient=["#3fae49", "#d8d8d8", "#c74bc5"])
+        head = hbox(section("色調"), None,
+                    button("自動", None, None, "依直方圖自動調整曝光、亮部、陰影、白色、黑色", self.auto),
+                    button("全部重設", None, "reset", "所有調整回到預設值", self.reset_all), spacing=6)
         B.addWidget(wrap(head))
-        self._slider(B, "exposure", tr("曝光"), -5, 5, 0.05, ev_fmt)
-        self._slider(B, "contrast", tr("對比"))
-        self._slider(B, "highlights", tr("亮部"))
-        self._slider(B, "shadows", tr("陰影"))
-        self._slider(B, "whites", tr("白色"))
-        self._slider(B, "blacks", tr("黑色"))
-        B.addWidget(section(tr("外觀")))
-        self._slider(B, "texture", tr("紋理"))
-        self._slider(B, "clarity", tr("清晰度"))
-        self._slider(B, "dehaze", tr("去朦朧"))
-        self._slider(B, "vibrance", tr("細節飽和度"))
-        self._slider(B, "saturation", tr("飽和度"))
+        self._slider(B, "exposure", "曝光", -5, 5, 0.05, ev_fmt)
+        self._slider(B, "contrast", "對比")
+        self._slider(B, "highlights", "亮部")
+        self._slider(B, "shadows", "陰影")
+        self._slider(B, "whites", "白色")
+        self._slider(B, "blacks", "黑色")
+        B.addWidget(section("外觀"))
+        self._slider(B, "texture", "紋理")
+        self._slider(B, "clarity", "清晰度")
+        self._slider(B, "dehaze", "去朦朧")
+        self._slider(B, "vibrance", "細節飽和度")
+        self._slider(B, "saturation", "飽和度")
 
         C = tabs["color"]
-        C.addWidget(section(tr("色彩混合")))
-        self.hsl_mode = Segmented([("0", tr("色相")), ("1", tr("飽和度")), ("2", tr("明亮度"))], "0")
+        C.addWidget(section("色彩混合"))
+        self.hsl_mode = Segmented([("0", "色相"), ("1", "飽和度"), ("2", "明亮度")], "0")
         self.hsl_mode.changed.connect(lambda *_: self._sync_hsl())
         C.addWidget(self.hsl_mode)
         self.hsl_sliders = {}
@@ -342,10 +340,10 @@ class AdjustPage(ToolPage):
             s.released.connect(self.settle)
             self.hsl_sliders[name] = s
             C.addWidget(s)
-        C.addWidget(section(tr("顏色分級")))
+        C.addWidget(section("顏色分級"))
         spectrum = [hue_hex(h, 0.75, 0.95) for h in range(0, 361, 30)]
-        for key, title in (("sh_hue", tr("陰影色相")), ("sh_sat", tr("陰影飽和")), ("hi_hue", tr("亮部色相")),
-                           ("hi_sat", tr("亮部飽和")), ("balance", tr("平衡"))):
+        for key, title in (("sh_hue", "陰影色相"), ("sh_sat", "陰影飽和"), ("hi_hue", "亮部色相"),
+                           ("hi_sat", "亮部飽和"), ("balance", "平衡")):
             if key.endswith("hue"):
                 s = ParamSlider(title, 0, 360, self.p["grade"][key], 1, D.DEFAULTS["grade"][key],
                                 lambda v: f"{v:.0f}°", spectrum)
@@ -360,55 +358,51 @@ class AdjustPage(ToolPage):
         self._sync_hsl()
 
         E = tabs["effects"]
-        E.addWidget(section(tr("暈影")))
-        self._slider(E, "vignette", tr("總量"))
-        self._slider(E, "vig_mid", tr("中點"), 0, 100)
-        self._slider(E, "vig_feather", tr("羽化"), 0, 100)
-        E.addWidget(section(tr("顆粒")))
-        self._slider(E, "grain", tr("總量"), 0, 100)
-        self._slider(E, "grain_size", tr("大小"), 0, 100)
+        E.addWidget(section("暈影"))
+        self._slider(E, "vignette", "總量")
+        self._slider(E, "vig_mid", "中點", 0, 100)
+        self._slider(E, "vig_feather", "羽化", 0, 100)
+        E.addWidget(section("顆粒"))
+        self._slider(E, "grain", "總量", 0, 100)
+        self._slider(E, "grain_size", "大小", 0, 100)
 
         S = tabs["spot"]
-        S.addWidget(label(tr("在照片上拖曳畫出聚光燈：裡面提亮、外面壓暗。拖中間移動、拖邊上的點改大小、拖上方的圓點旋轉，Delete 刪除。"),
-                          "caption", wrap=True))
         self.shape = Segmented(SHAPES, "ellipse")
+        self.shape.setToolTip("在照片上拖曳畫出聚光燈（光帶沿著拖曳的方向）\n拖中間移動、拖邊上的點改大小、拖上方的圓點旋轉，Delete 刪除")
         self.shape.changed.connect(self._set_shape)
-        S.addWidget(field(tr("形狀"), self.shape))
-        S.addWidget(label(tr("光帶是橫跨整張照片的一條光，拖曳的方向就是光帶的方向。"), "caption", wrap=True))
+        S.addWidget(field("形狀", self.shape))
         self.spot_info = label("", "secondary")
-        self.del_btn = button(tr("刪除"), None, "trash", tr("刪除選取的聚光燈（Delete）"), self.remove_spot)
+        self.del_btn = button("刪除", None, "trash", "刪除選取的聚光燈（Delete）", self.remove_spot)
         S.addWidget(wrap(hbox(self.spot_info, None,
-                              button(tr("新增"), None, "plus", tr("在畫面中間加一個聚光燈"),
+                              button("新增", None, "plus", "在畫面中間加一個聚光燈",
                                      lambda: (self.add_spot(0.5, 0.5, 0.18, 0.22), self.spots_changed(final=True))),
                               self.del_btn, spacing=6)))
-        S.addWidget(section(tr("選取的聚光燈")))
+        S.addWidget(section("選取的聚光燈"))
         self.spot_sliders = {}
         for key, title, lo, hi, step, fmt, dflt in (
-                ("ev", tr("亮度"), -2, 3, 0.05, ev_fmt, 0.8), ("feather", tr("羽化"), 0, 100, 1, None, 60),
-                ("warmth", tr("色溫"), -100, 100, 1, None, 0), ("angle", tr("角度"), -90, 90, 1, lambda v: f"{v:+.0f}°", 0)):
+                ("ev", "亮度", -2, 3, 0.05, ev_fmt, 0.8), ("feather", "羽化", 0, 100, 1, None, 60),
+                ("warmth", "色溫", -100, 100, 1, None, 0), ("angle", "角度", -90, 90, 1, lambda v: f"{v:+.0f}°", 0)):
             s = ParamSlider(title, lo, hi, dflt, step, dflt, fmt,
                             ["#3b78d8", "#d8d8d8", "#e2b23c"] if key == "warmth" else None)
             s.changed.connect(lambda v, k=key: self._set_spot(k, v))
             s.released.connect(self.settle)
             self.spot_sliders[key] = s
             S.addWidget(s)
-        S.addWidget(section(tr("周圍")))
-        self._slider(S, "spot_dim", tr("周圍壓暗"), 0, 100)
+        S.addWidget(section("周圍"))
+        self._slider(S, "spot_dim", "周圍壓暗", 0, 100)
         self._sync_spot()
 
         F = self.form
-        F.addWidget(section(tr("匯出")))
+        F.addWidget(section("匯出"))
         self.fmt = QComboBox()
         self.fmt.addItem("JPEG", "jpg")
         self.fmt.addItem("PNG", "png")
-        self.quality = SliderField(tr("JPEG 品質"), 60, 100, 1, 92, lambda v: f"{v:.0f}%")
-        F.addWidget(row(field(tr("格式"), self.fmt), self.quality))
+        self.quality = SliderField("JPEG 品質", 60, 100, 1, 92, lambda v: f"{v:.0f}%")
+        F.addWidget(row(field("格式", self.fmt), self.quality))
 
     def _build_style(self, Y):
-        Y.addWidget(label(tr("跟 iPhone 相機的「攝影風格」一樣：先挑一個風格，再用控制板與色盤微調。其他分頁的調整會疊在風格上面。"),
-                          "caption", wrap=True))
         self.style_tiles = {}
-        for title, group in ((tr("膚色基調"), ST.UNDERTONES), (tr("氛圍"), ST.MOODS)):
+        for title, group in (("膚色基調", ST.UNDERTONES), ("氛圍", ST.MOODS)):
             Y.addWidget(section(title))
             host = QWidget()
             grid = QGridLayout(host)
@@ -422,19 +416,19 @@ class AdjustPage(ToolPage):
                 self.style_tiles[key] = t
             grid.setColumnStretch(3, 1)
             Y.addWidget(host)
-        Y.addWidget(section(tr("微調")))
+        Y.addWidget(section("微調"))
         self.pad = ControlPad()
         self.pad.changed.connect(self._set_pad)
         self.pad.released.connect(self.settle)
         self.pad_info = label("", "secondary", wrap=True)
-        reset = button(tr("回到中間"), None, "reset", tr("色調、色彩回到中間"), self.reset_pad)
+        reset = button("回到中間", None, "reset", "色調、色彩回到中間", self.reset_pad)
         side = vbox(self.pad_info, wrap(hbox(reset, None)), None, spacing=8)
         Y.addWidget(wrap(hbox(self.pad, side, spacing=14)))
-        self.palette_slider = ParamSlider(tr("色盤"), 0, 100, 100, 1, 100, lambda v: f"{v:.0f}")
+        self.palette_slider = ParamSlider("色盤", 0, 100, 100, 1, 100, lambda v: f"{v:.0f}")
         self.palette_slider.changed.connect(lambda v: self._set_style_key("palette", v))
         self.palette_slider.released.connect(self.settle)
         Y.addWidget(self.palette_slider)
-        Y.addWidget(label(tr("色盤：風格的顏色有多強（0 = 幾乎只剩明暗的變化）。"), "caption", wrap=True))
+        self.palette_slider.setToolTip("風格的顏色有多強")
         self._relay.thumb.connect(self._on_thumb)
         self._thumb_token = None
         self._sync_style()
@@ -461,7 +455,7 @@ class AdjustPage(ToolPage):
     def _paint_pad_info(self):
         st = self.p["style"]
         name = dict(ST.UNDERTONES + ST.MOODS).get(st["name"], "")
-        self.pad_info.setText(tr('{0}\n色調 {1:+.0f}\n色彩 {2:+.0f}').format(name, st["tone"], st["color"]))
+        self.pad_info.setText(f'{name}\n色調 {st["tone"]:+.0f}\n色彩 {st["color"]:+.0f}')
 
     def _sync_style(self):
         st = self.p["style"]
@@ -592,8 +586,8 @@ class AdjustPage(ToolPage):
     def _sync_spot(self):
         spots = self.p["spots"]
         on = 0 <= self.sel < len(spots)
-        self.spot_info.setText(tr('聚光燈 {0} / {1}').format(self.sel + 1, len(spots)) if on else
-                               tr("還沒有聚光燈") if not spots else tr('共 {0} 個').format(len(spots)))
+        self.spot_info.setText(f'聚光燈 {self.sel + 1} / {len(spots)}' if on else
+                               "還沒有聚光燈" if not spots else f'共 {len(spots)} 個')
         self.del_btn.setEnabled(on)
         for key, s in self.spot_sliders.items():
             s.setEnabled(on)
@@ -681,9 +675,9 @@ class AdjustPage(ToolPage):
         full, p = self.full, _copy(self.p)
 
         def job(progress):
-            progress(0.03, tr("準備原尺寸"))
+            progress(0.03, "準備原尺寸")
             rgb = qimage_to_rgb(full)
-            out = D.render(rgb, p, progress=lambda f: progress(0.05 + 0.8 * f, tr("套用調整")))
+            out = D.render(rgb, p, progress=lambda f: progress(0.05 + 0.8 * f, "套用調整"))
             return rgb_to_qimage(out)
 
         return job

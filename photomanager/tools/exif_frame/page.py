@@ -5,13 +5,12 @@
 """
 from __future__ import annotations
 
-from ...i18n import tr
 
 import re
 
 from PySide6.QtCore import QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QComboBox, QFileDialog, QLineEdit, QPushButton
+from PySide6.QtGui import QImage, QPainter, QPixmap
+from PySide6.QtWidgets import QComboBox, QFileDialog, QLineEdit
 
 from ...engine import exif as exif_mod
 from ...engine import image as imgmod
@@ -74,7 +73,7 @@ class FrameStage(Stage):
 
 
 class ExifFramePage(ToolPage):
-    title = tr("EXIF 相框")
+    title = "EXIF 相框"
     stage_class = FrameStage
 
     def __init__(self, window):
@@ -87,40 +86,40 @@ class ExifFramePage(ToolPage):
         self._timer.setSingleShot(True)
         self._timer.setInterval(16)
         self._timer.timeout.connect(self._paint)
-        self.add_output_buttons(tr("輸出加上相框的照片（Ctrl+S）"))
+        self.add_output_buttons("輸出加上相框的照片（Ctrl+S）")
         self._build()
 
     def _build(self):
         F = self.form
         o = self.o
-        F.addWidget(section(tr("相框")))
+        F.addWidget(section("相框"))
         self.mode = Segmented(MODES, o["mode"])
         self.mode.changed.connect(self._set_mode)
-        F.addWidget(field(tr("樣式"), self.mode))
-        align = Segmented([("split", tr("左右")), ("center", tr("置中"))], o["align"])
+        F.addWidget(field("樣式", self.mode))
+        align = Segmented([("split", "左右"), ("center", "置中")], o["align"])
         align.changed.connect(lambda v: self._set("align", v))
-        F.addWidget(field(tr("文字"), align))
-        self.pad = SliderField(tr("邊框寬度"), 0, 12, 0.5, o["pad"] * 100, lambda v: f"{v:g}%")
+        F.addWidget(field("文字", align))
+        self.pad = SliderField("邊框寬度", 0, 12, 0.5, o["pad"] * 100, lambda v: f"{v:g}%")
         self.pad.changed.connect(lambda v: self._set("pad", v / 100))
-        bar = SliderField(tr("資訊列高度"), 0.5, 2.2, 0.05, o["barScale"], lambda v: f"{v:.2f}×")
+        bar = SliderField("資訊列高度", 0.5, 2.2, 0.05, o["barScale"], lambda v: f"{v:.2f}×")
         bar.changed.connect(lambda v: self._set("barScale", v))
         F.addWidget(row(self.pad, bar))
-        fs = SliderField(tr("字級"), 0.6, 1.6, 0.05, o["fontScale"], lambda v: f"{v:.2f}×")
+        fs = SliderField("字級", 0.6, 1.6, 0.05, o["fontScale"], lambda v: f"{v:.2f}×")
         fs.changed.connect(lambda v: self._set("fontScale", v))
-        rad = SliderField(tr("外框圓角"), 0, 6, 0.5, 0, lambda v: f"{v:g}%")
+        rad = SliderField("外框圓角", 0, 6, 0.5, 0, lambda v: f"{v:g}%")
         rad.changed.connect(lambda v: self._set("radius", v / 100))
-        prad = SliderField(tr("照片圓角"), 0, 6, 0.5, 0, lambda v: f"{v:g}%")
+        prad = SliderField("照片圓角", 0, 6, 0.5, 0, lambda v: f"{v:g}%")
         prad.changed.connect(lambda v: self._set("photoRadius", v / 100))
         F.addWidget(row(fs, rad, prad))
         toggles = []
-        for key, lb in (("showBar", tr("資訊列")), ("separator", tr("分隔線")), ("shadow", tr("陰影"))):
+        for key, lb in (("showBar", "資訊列"), ("separator", "分隔線"), ("shadow", "陰影")):
             cb = Flag(lb)
             cb.setChecked(o[key])
             cb.toggled.connect(lambda on, k=key: self._set(k, on))
             toggles.append(cb)
-        F.addWidget(field(tr("開關"), wrap(hbox(*toggles, None, spacing=6))))
+        F.addWidget(field("開關", wrap(hbox(*toggles, None, spacing=6))))
 
-        F.addWidget(section(tr("顏色")))
+        F.addWidget(section("顏色"))
         self.bg = ColorButton(o["bg"])
         self.bg.changed.connect(self._set_bg)
         swatches = []
@@ -128,48 +127,48 @@ class ExifFramePage(ToolPage):
             b = ColorButton(hexv, size=(30, 30), pick=False)
             b.clicked.connect(lambda _=False, h=hexv: (self.bg.set(h), self._set_bg(h)))
             swatches.append(b)
-        self.auto_color = Flag(tr("自動"))
+        self.auto_color = Flag("自動")
         self.auto_color.setChecked(True)
         self.auto_color.toggled.connect(lambda on: on and (self._auto_colors(), self.schedule()))
-        F.addWidget(row(field(tr("底色"), self.bg), field(tr("常用"), wrap(hbox(*swatches, None, spacing=6))),
-                        field(tr("自動配色"), self.auto_color)))
+        F.addWidget(row(field("底色", self.bg), field("常用", wrap(hbox(*swatches, None, spacing=6))),
+                        field("自動配色", self.auto_color)))
         self.text_color = ColorButton(o["textColor"])
         self.sub_color = ColorButton(o["subColor"])
         self.accent = ColorButton(o["accent"])
         for btn, key in ((self.text_color, "textColor"), (self.sub_color, "subColor"), (self.accent, "accent")):
             btn.changed.connect(lambda v, k=key: self._set(k, v))
-        F.addWidget(row(field(tr("主要文字"), self.text_color), field(tr("次要文字"), self.sub_color), field(tr("品牌"), self.accent)))
+        F.addWidget(row(field("主要文字", self.text_color), field("次要文字", self.sub_color), field("品牌", self.accent)))
         font = QComboBox()
-        font.addItem(tr("無襯線"), "sans")
-        font.addItem(tr("等寬"), "mono")
+        font.addItem("無襯線", "sans")
+        font.addItem("等寬", "mono")
         font.currentIndexChanged.connect(lambda *_: self._set("font", font.currentData()))
-        self.logo_btn = button(tr("上傳"), None, "upload", on_click=self.pick_logo)
-        self.logo_clear = button(tr("移除"), on_click=self.clear_logo)
+        self.logo_btn = button("上傳", None, "upload", on_click=self.pick_logo)
+        self.logo_clear = button("移除", on_click=self.clear_logo)
         self.logo_clear.hide()
-        F.addWidget(row(field(tr("字體"), font), field(tr("品牌圖"), wrap(hbox(self.logo_btn, self.logo_clear, None, spacing=6)))))
+        F.addWidget(row(field("字體", font), field("品牌圖", wrap(hbox(self.logo_btn, self.logo_clear, None, spacing=6)))))
 
-        F.addWidget(section(tr("文字")))
+        F.addWidget(section("文字"))
         self.inputs = {}
-        for key, lb, ph in (("model", tr("型號"), "X-T4"), ("date", tr("時間"), "2024-05-16 12:33"),
-                            ("brand", tr("品牌"), "FUJIFILM"), ("params", tr("參數"), "53mm f/3.2 1/5800s ISO640"),
-                            ("title", tr("標題"), tr("上下框樣式才會用到"))):
+        for key, lb, ph in (("model", "型號", "X-T4"), ("date", "時間", "2024-05-16 12:33"),
+                            ("brand", "品牌", "FUJIFILM"), ("params", "參數", "53mm f/3.2 1/5800s ISO640"),
+                            ("title", "標題", "上下框樣式才會用到")):
             e = QLineEdit()
             e.setPlaceholderText(ph)
             e.textEdited.connect(lambda v, k=key: self._set(k, v))
             self.inputs[key] = e
-        F.addWidget(row(field(tr("型號"), self.inputs["model"]), field(tr("時間"), self.inputs["date"])))
-        F.addWidget(row(field(tr("品牌"), self.inputs["brand"]), field(tr("參數"), self.inputs["params"])))
-        F.addWidget(field(tr("標題"), self.inputs["title"]))
+        F.addWidget(row(field("型號", self.inputs["model"]), field("時間", self.inputs["date"])))
+        F.addWidget(row(field("品牌", self.inputs["brand"]), field("參數", self.inputs["params"])))
+        F.addWidget(field("標題", self.inputs["title"]))
 
-        F.addWidget(section(tr("匯出")))
+        F.addWidget(section("匯出"))
         self.fmt = QComboBox()
         self.fmt.addItem("JPEG", "jpg")
         self.fmt.addItem("PNG", "png")
         self.scale = QComboBox()
-        for v, lb in (("1", tr("原尺寸")), ("0.75", "75%"), ("0.5", "50%"), ("0.25", "25%")):
+        for v, lb in (("1", "原尺寸"), ("0.75", "75%"), ("0.5", "50%"), ("0.25", "25%")):
             self.scale.addItem(lb, v)
-        F.addWidget(row(field(tr("格式"), self.fmt), field(tr("尺寸"), self.scale)))
-        self.quality = SliderField(tr("JPEG 品質"), 60, 100, 1, 92, lambda v: f"{v:.0f}%")
+        F.addWidget(row(field("格式", self.fmt), field("尺寸", self.scale)))
+        self.quality = SliderField("JPEG 品質", 60, 100, 1, 92, lambda v: f"{v:.0f}%")
         F.addWidget(self.quality)
         F.addStretch(1)
 
@@ -201,20 +200,20 @@ class ExifFramePage(ToolPage):
         self.accent.set(self.o["accent"])
 
     def pick_logo(self):
-        path, _ = QFileDialog.getOpenFileName(self.win, tr("品牌圖"), "", IMAGE_FILTER + ";;SVG (*.svg)")
+        path, _ = QFileDialog.getOpenFileName(self.win, "品牌圖", "", IMAGE_FILTER + ";;SVG (*.svg)")
         if not path:
             return
         try:
             self.logo = imgmod.decode(path, 1200)
-            self.logo_btn.setText(tr("更換"))
+            self.logo_btn.setText("更換")
             self.logo_clear.show()
             self.schedule()
         except Exception as e:  # noqa: BLE001
-            notify(tr('讀取失敗: {0}').format(e), "danger")
+            notify(f'讀取失敗: {e}', "danger")
 
     def clear_logo(self):
         self.logo = None
-        self.logo_btn.setText(tr("上傳"))
+        self.logo_btn.setText("上傳")
         self.logo_clear.hide()
         self.schedule()
 
@@ -233,7 +232,7 @@ class ExifFramePage(ToolPage):
             self.o[k] = v
             self.inputs[k].setText(v)
             self.inputs[k].setCursorPosition(0)   # 長的參數從頭顯示，不要只看到尾巴
-        self.set_status(f"{img.width()}×{img.height()}" + ("" if info else tr(" · 無 EXIF")))
+        self.set_status(f"{img.width()}×{img.height()}" + ("" if info else " · 無 EXIF"))
         self._paint()
 
     def schedule(self):
@@ -257,7 +256,7 @@ class ExifFramePage(ToolPage):
         width = round(self.img.width() * float(self.scale.currentData()))
 
         def job(progress):
-            progress(0.2, tr("排版與繪製相框"))
+            progress(0.2, "排版與繪製相框")
             return render_frame(src, o, width, logo)
 
         return job

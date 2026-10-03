@@ -9,7 +9,6 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr
 
 import math
 
@@ -21,7 +20,7 @@ from PySide6.QtWidgets import QWidget
 from .. import config
 from . import icons, theme
 
-TABS = [("hist", tr("直方圖")), ("wave", tr("波形")), ("color", tr("顏色")), ("expo", tr("曝光"))]
+TABS = [("hist", "直方圖"), ("wave", "波形"), ("color", "顏色"), ("expo", "曝光")]
 EDGE = 360
 W_OPEN, CHART_H = 316, 150
 
@@ -114,10 +113,10 @@ def analyse(img) -> dict:
     gm = float((g - (r + b) / 2).mean())
     cast = []
     if abs(rb) > 0.03:
-        cast.append(tr("偏暖") if rb > 0 else tr("偏冷"))
+        cast.append("偏暖" if rb > 0 else "偏冷")
     if abs(gm) > 0.025:
-        cast.append(tr("偏綠") if gm > 0 else tr("偏洋紅"))
-    out["cast"] = "、".join(cast) or tr("中性")
+        cast.append("偏綠" if gm > 0 else "偏洋紅")
+    out["cast"] = "、".join(cast) or "中性"
     return out
 
 
@@ -194,7 +193,7 @@ class ScopesOverlay(QWidget):
         p.setFont(theme.font("caption", 600))
         chev = icons.pixmap("chevron-down" if self.open else "chevron-right", "#ffffff", 11)
         p.drawPixmap(QRectF(10, 7.5, 11, 11), chev, QRectF(chev.rect()))
-        p.drawText(QRectF(26, 0, 90, 26), Qt.AlignmentFlag.AlignVCenter, tr("照片參數"))
+        p.drawText(QRectF(26, 0, 90, 26), Qt.AlignmentFlag.AlignVCenter, "照片參數")
         if not self.open:
             return
         if self.label_text:
@@ -260,9 +259,9 @@ class ScopesOverlay(QWidget):
         p.setFont(theme.font("caption"))
         p.setPen(QColor(255, 255, 255, 150))
         p.drawText(QRectF(r.left() + 6, r.bottom() - 15, r.width() - 12, 14), Qt.AlignmentFlag.AlignLeft,
-                   tr("死黑 {0:.1f}%").format(d["clip_lo"] * 100))
+                   "死黑 {0:.1f}%".format(d["clip_lo"] * 100))
         p.drawText(QRectF(r.left() + 6, r.bottom() - 15, r.width() - 12, 14), Qt.AlignmentFlag.AlignRight,
-                   tr("死白 {0:.1f}%").format(d["clip_hi"] * 100))
+                   "死白 {0:.1f}%".format(d["clip_hi"] * 100))
 
     def _paint_wave(self, p, r):
         self._frame(p, r)
@@ -306,7 +305,7 @@ class ScopesOverlay(QWidget):
         x0 = sq.right() + 14
         p.setFont(theme.font("caption"))
         p.setPen(QColor(255, 255, 255, 150))
-        p.drawText(QRectF(x0, r.top() + 8, r.right() - x0 - 6, 16), Qt.AlignmentFlag.AlignLeft, tr("代表色"))
+        p.drawText(QRectF(x0, r.top() + 8, r.right() - x0 - 6, 16), Qt.AlignmentFlag.AlignLeft, "代表色")
         sw = self.data["swatches"]
         y = r.top() + 28
         for col in sw:
@@ -319,14 +318,14 @@ class ScopesOverlay(QWidget):
         p.setFont(theme.font("caption"))
         p.setPen(QColor(255, 255, 255, 150))
         p.drawText(QRectF(x0, r.bottom() - 18, r.right() - x0 - 6, 16), Qt.AlignmentFlag.AlignLeft,
-                   tr("色偏：{0}").format(self.data["cast"]))
+                   "色偏：{0}".format(self.data["cast"]))
 
     def _paint_expo(self, p, r):
         self._frame(p, r)
         d = self.data
-        rows = [(tr("平均亮度"), f"{d['mean'] * 100:.0f}%"), (tr("中間調"), f"{d['median'] * 100:.0f}%"),
-                (tr("動態範圍"), f"{d['dr']:.1f} EV"),
-                (tr("死白 / 死黑"), f"{d['clip_hi'] * 100:.1f}% / {d['clip_lo'] * 100:.1f}%")]
+        rows = [("平均亮度", f"{d['mean'] * 100:.0f}%"), ("中間調", f"{d['median'] * 100:.0f}%"),
+                ("動態範圍", f"{d['dr']:.1f} EV"),
+                ("死白 / 死黑", f"{d['clip_hi'] * 100:.1f}% / {d['clip_lo'] * 100:.1f}%")]
         rows += self.exif
         f = theme.font("caption")
         fb = theme.font("caption", 600)

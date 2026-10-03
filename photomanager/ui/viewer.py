@@ -10,13 +10,12 @@
 """
 from __future__ import annotations
 
-from ..i18n import tr
 
 import math
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFontMetrics, QGuiApplication, QPainter, QPainterPath, QPixmap
-from PySide6.QtWidgets import QHBoxLayout, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QToolButton, QWidget
 
 from ..engine.library import library, Photo
 from . import icons, theme
@@ -226,7 +225,7 @@ class Pane(QWidget):
         elif self.shown is not None:
             p.setPen(QColor(255, 255, 255, 120))
             p.setFont(theme.font("body"))
-            text = tr("讀取中…") if self.shown.thumb_state != "error" else (self.shown.thumb_error or tr("無法預覽"))
+            text = "讀取中…" if self.shown.thumb_state != "error" else (self.shown.thumb_error or "無法預覽")
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, text)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         if self.shown is not None:
@@ -253,7 +252,7 @@ class Pane(QWidget):
             p.setPen(Qt.PenStyle.NoPen)
             f = theme.font("callout", 600)
             p.setFont(f)
-            tip = tr("放開就左右對照")
+            tip = "放開就左右對照"
             tw = QFontMetrics(f).horizontalAdvance(tip) + 28
             tool_r = QRectF((self.width() - tw) / 2, self.height() / 2 - 17, tw, 34)
             p.fillPath(theme.round_rect(QPainterPath(), tool_r, 8), theme.c("accent"))
@@ -330,10 +329,10 @@ class Hud(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.peek = HudButton("play", tr("按住看下一張（Space）"))
-        self.link = HudButton("link", tr("兩張一起縮放平移"), checkable=True)
+        self.peek = HudButton("play", "按住看下一張（Space）")
+        self.link = HudButton("link", "兩張一起縮放平移", checkable=True)
         self.link.setChecked(True)
-        self.reset = HudButton("reset", tr("回到原始大小（0）"))
+        self.reset = HudButton("reset", "回到原始大小（0）")
         self.zoom = QToolButton()
         self.zoom.setEnabled(False)
         self.zoom.setStyleSheet("QToolButton { color: white; background: transparent; font-weight: 600; padding: 0 6px; }"
@@ -404,7 +403,7 @@ class InfoOverlay(QWidget):
         p.setFont(theme.font("caption", 600))
         chev = icons.pixmap("chevron-down" if self.open else "chevron-right", "#ffffff", 11)
         p.drawPixmap(QRectF(10, 7.5, 11, 11), chev, QRectF(chev.rect()))
-        p.drawText(QRectF(26, 0, 80, 26), Qt.AlignmentFlag.AlignVCenter, tr("照片資訊"))
+        p.drawText(QRectF(26, 0, 80, 26), Qt.AlignmentFlag.AlignVCenter, "照片資訊")
         if not self.open:
             return
         y = 30.0

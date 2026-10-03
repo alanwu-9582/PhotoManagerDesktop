@@ -25,8 +25,8 @@ class Prompt:
     id: str
     folder: Path
     text_path: Path
-    title: dict
-    description: dict
+    title: str
+    description: str
     tags: list = field(default_factory=list)
     language: str = ""
     thumbnails: list = field(default_factory=list)   # 圖片的完整路徑
@@ -36,11 +36,6 @@ class Prompt:
             return self.text_path.read_text(encoding="utf-8-sig")
         except OSError:
             return ""
-
-    def localized(self, d: dict, lang: str) -> str:
-        if not isinstance(d, dict):
-            return str(d or "")
-        return d.get(lang) or d.get("zh-Hant") or next(iter(d.values()), "")
 
 
 def load() -> list[Prompt]:
@@ -56,7 +51,7 @@ def load() -> list[Prompt]:
         if not thumbs and folder.is_dir():
             thumbs = sorted(p for p in folder.iterdir() if p.suffix.lower() in IMAGE_EXT)
         out.append(Prompt(id=e.get("id", folder.name), folder=folder, text_path=text_path,
-                          title=e.get("title", {}), description=e.get("description", {}),
+                          title=str(e.get("title", "")), description=str(e.get("description", "")),
                           tags=list(e.get("tags", [])), language=e.get("language", ""),
                           thumbnails=[p for p in thumbs if p.exists()]))
     return out

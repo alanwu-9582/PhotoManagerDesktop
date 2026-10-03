@@ -6,15 +6,14 @@ Raw EXIF 是開這個視窗時才重新讀一次檔案的，整批掃描時不�
 """
 from __future__ import annotations
 
-from ..i18n import tr, tr_value
 
 import datetime as dt
 import re
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import (QFormLayout, QHeaderView, QLabel, QStackedWidget, QTableWidget,
-                               QTableWidgetItem, QVBoxLayout, QWidget, QAbstractItemView)
+from PySide6.QtWidgets import (QFormLayout, QHeaderView, QStackedWidget, QTableWidget, QTableWidgetItem, QVBoxLayout,
+                               QWidget, QAbstractItemView)
 
 from ..engine import image as imgmod
 from ..engine.library import library
@@ -35,7 +34,7 @@ def fmt_exif_date(v):
 
 
 def _v(v):
-    return None if v is None else tr_value(v)
+    return None if v is None else str(v)
 
 
 def groups_for(photo):
@@ -46,39 +45,39 @@ def groups_for(photo):
     coord = lambda v, ref: None if v is None else f"{abs(v):.4f}° {ref}"  # noqa: E731
     return {
         "basic": [
-            (tr("檔名"), photo.name),
-            (tr("路徑"), photo.path),
-            (tr("格式"), photo.ext or None),
-            (tr("尺寸"), f"{w} × {h}" if w and h else None),
-            (tr("像素"), f"{w * h / 1e6:.1f} MP" if w and h else None),
-            (tr("檔案大小"), fmt_bytes(photo.size) if photo.size else None),
-            (tr("拍攝時間"), fmt_exif_date(i.get("dateTimeOriginal"))),
-            (tr("修改時間"), dt.datetime.fromtimestamp(photo.mtime).strftime("%Y/%m/%d %H:%M:%S") if photo.mtime else None),
-            (tr("方向"), i.get("orientation")),
-            (tr("容器"), container),
+            ("檔名", photo.name),
+            ("路徑", photo.path),
+            ("格式", photo.ext or None),
+            ("尺寸", f"{w} × {h}" if w and h else None),
+            ("像素", f"{w * h / 1e6:.1f} MP" if w and h else None),
+            ("檔案大小", fmt_bytes(photo.size) if photo.size else None),
+            ("拍攝時間", fmt_exif_date(i.get("dateTimeOriginal"))),
+            ("修改時間", dt.datetime.fromtimestamp(photo.mtime).strftime("%Y/%m/%d %H:%M:%S") if photo.mtime else None),
+            ("方向", i.get("orientation")),
+            ("容器", container),
         ],
         "exposure": [
-            (tr("焦段"), i.get("focalLength")), (tr("35mm 等效"), i.get("focalLength35mm")),
-            (tr("光圈"), i.get("fNumber")), (tr("快門"), i.get("exposureTime")), ("ISO", i.get("iso")),
-            (tr("曝光補償"), i.get("exposureBias")), (tr("曝光模式"), _v(i.get("exposureProgram"))),
-            (tr("測光模式"), _v(i.get("meteringMode"))), (tr("閃光燈"), _v(i.get("flash"))),
-            (tr("場景類型"), _v(i.get("sceneCaptureType"))),
+            ("焦段", i.get("focalLength")), ("35mm 等效", i.get("focalLength35mm")),
+            ("光圈", i.get("fNumber")), ("快門", i.get("exposureTime")), ("ISO", i.get("iso")),
+            ("曝光補償", i.get("exposureBias")), ("曝光模式", _v(i.get("exposureProgram"))),
+            ("測光模式", _v(i.get("meteringMode"))), ("閃光燈", _v(i.get("flash"))),
+            ("場景類型", _v(i.get("sceneCaptureType"))),
         ],
-        "camera": [(tr("製造商"), i.get("make")), (tr("型號"), i.get("model")), (tr("韌體 / 軟體"), i.get("software")),
-                   (tr("相機時間"), fmt_exif_date(i.get("dateTime")))],
-        "lens": [(tr("鏡頭"), i.get("lensModel")), (tr("焦段"), i.get("focalLength")), (tr("最大光圈"), i.get("fNumber"))],
-        "color": [(tr("色域"), _v(i.get("colorSpace"))), (tr("白平衡"), _v(i.get("whiteBalance"))), (tr("創意風格"), i.get("creativeStyle"))],
+        "camera": [("製造商", i.get("make")), ("型號", i.get("model")), ("韌體 / 軟體", i.get("software")),
+                   ("相機時間", fmt_exif_date(i.get("dateTime")))],
+        "lens": [("鏡頭", i.get("lensModel")), ("焦段", i.get("focalLength")), ("最大光圈", i.get("fNumber"))],
+        "color": [("色域", _v(i.get("colorSpace"))), ("白平衡", _v(i.get("whiteBalance"))), ("創意風格", i.get("creativeStyle"))],
         "gps": [
-            (tr("緯度"), coord(gps["latitude"], gps["latitudeRef"])),
-            (tr("經度"), coord(gps["longitude"], gps["longitudeRef"])),
-            (tr("海拔"), None if gps.get("altitude") is None else f"{gps['altitude']:.1f} m"),
+            ("緯度", coord(gps["latitude"], gps["latitudeRef"])),
+            ("經度", coord(gps["longitude"], gps["longitudeRef"])),
+            ("海拔", None if gps.get("altitude") is None else f"{gps['altitude']:.1f} m"),
         ] if gps else [],
     }
 
 
 class Inspector(Sheet):
     def __init__(self, parent, photo):
-        super().__init__(parent, tr("照片資訊"), width=640, height=560)
+        super().__init__(parent, "照片資訊", width=640, height=560)
         self.photo = photo
         # Raw EXIF 現在才讀（以及還沒掃到的那幾張的一般欄位）。一張只要幾毫秒，直接同步讀。
         info = library.read_info_now(photo, want_raw=True)
@@ -99,12 +98,12 @@ class Inspector(Sheet):
         for key, _ in tabs:
             page = self._raw_page() if key == "raw" else self._rows_page(self.groups.get(key, []))
             self.pages[key] = self.stack.addWidget(page)
-        self.body.addWidget(self.tabs, 0, Qt.AlignmentFlag.AlignLeft)
+        self.body.addWidget(self.tabs)
         self.body.addWidget(self.stack, 1)
 
         foot = label(photo.name, "caption")
-        self.copy_btn = button(tr("複製"), None, "copy", on_click=self.copy)
-        done = button(tr("完成"), "primary", on_click=self.accept)
+        self.copy_btn = button("複製", None, "copy", on_click=self.copy)
+        done = button("完成", "primary", on_click=self.accept)
         done.setDefault(True)
         self.footer.addWidget(foot)
         self.add_footer(self.copy_btn, done)
@@ -166,8 +165,8 @@ class Inspector(Sheet):
     def copy(self):
         lines = [f"{k}\t{v}" for rows in self.groups.values() for k, v in rows if v is not None and v != ""]
         QGuiApplication.clipboard().setText("\n".join(lines))
-        self.copy_btn.setText(tr("已複製"))
-        notify(tr("已複製照片資訊"), "success")
+        self.copy_btn.setText("已複製")
+        notify("已複製照片資訊", "success")
 
 
 def open_inspector(parent, photo):

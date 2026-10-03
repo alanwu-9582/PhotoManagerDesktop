@@ -6,17 +6,14 @@
 """
 from __future__ import annotations
 
-from ...i18n import tr
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QComboBox
 
-from ...engine import image as imgmod
-from ...ui import theme
-from ...ui.widgets import (Flag, ColorButton, Segmented, SliderField, button, field, hbox, icon_button, label, notify,
-                           row, section, wrap)
+from ...ui.widgets import (Flag, ColorButton, Segmented, SliderField, button, field, hbox, icon_button, label, row,
+                           section, wrap)
 from ..common import Stage, ToolPage, safe_name
 from .guides import DIRECTIONAL, GUIDES, guide_paths
 from .transform import ASPECTS, crop_image, fit_crop, largest_inner_rect, render_work, rotated_size
@@ -231,7 +228,7 @@ class CropStage(Stage):
 
 
 class PhotoEditPage(ToolPage):
-    title = tr("裁切旋轉")
+    title = "裁切旋轉"
 
     def __init__(self, window):
         super().__init__(window)
@@ -244,7 +241,7 @@ class PhotoEditPage(ToolPage):
         self.work: QImage | None = None
         self.size_out = label("", "caption")
         self.meta_lay.addWidget(self.size_out)
-        self.add_output_buttons(tr("輸出裁切後的照片（Ctrl+S）"))
+        self.add_output_buttons("輸出裁切後的照片（Ctrl+S）")
         self._rebuild = QTimer(self)
         self._rebuild.setSingleShot(True)
         self._rebuild.setInterval(16)
@@ -257,60 +254,60 @@ class PhotoEditPage(ToolPage):
     # ---------------------------------------------------------------- 控制項
     def _build_controls(self):
         F = self.form
-        F.addWidget(section(tr("旋轉")))
-        self.rotate = SliderField(tr("旋轉微調"), -45, 45, 0.1, 0, lambda v: f"{v:.1f}°")
+        F.addWidget(section("旋轉"))
+        self.rotate = SliderField("旋轉微調", -45, 45, 0.1, 0, lambda v: f"{v:.1f}°")
         self.rotate.changed.connect(self._on_fine)
         F.addWidget(self.rotate)
-        turns = hbox(icon_button("rotate-left", tr("向左 90°"), lambda: self.turn(-90)),
-                     icon_button("rotate-right", tr("向右 90°"), lambda: self.turn(90)),
-                     button(tr("重設"), None, None, tr("角度歸零"), self.reset_angle), None, spacing=4)
-        self.flip_h = Flag(tr("水平翻轉"), icon_name="flip-h")
-        self.flip_v = Flag(tr("垂直翻轉"), icon_name="flip-v")
+        turns = hbox(icon_button("rotate-left", "向左 90°", lambda: self.turn(-90)),
+                     icon_button("rotate-right", "向右 90°", lambda: self.turn(90)),
+                     button("重設", None, None, "角度歸零", self.reset_angle), None, spacing=4)
+        self.flip_h = Flag("水平翻轉", icon_name="flip-h")
+        self.flip_v = Flag("垂直翻轉", icon_name="flip-v")
         self.flip_h.toggled.connect(lambda on: self._set("flipH", on))
         self.flip_v.toggled.connect(lambda on: self._set("flipV", on))
-        F.addWidget(row(field(tr("整圈"), wrap(turns)), field(tr("翻轉"), wrap(hbox(self.flip_h, self.flip_v, None, spacing=6)))))
+        F.addWidget(row(field("整圈", wrap(turns)), field("翻轉", wrap(hbox(self.flip_h, self.flip_v, None, spacing=6)))))
 
-        F.addWidget(section(tr("裁切")))
+        F.addWidget(section("裁切"))
         self.aspect = QComboBox()
         for v, lb in ASPECTS:
             self.aspect.addItem(lb, v)
         self.aspect.currentIndexChanged.connect(lambda *_: self._set_aspect())
-        self.orient = Segmented([("landscape", tr("橫")), ("portrait", tr("直"))], "landscape")
+        self.orient = Segmented([("landscape", "橫"), ("portrait", "直")], "landscape")
         self.orient.changed.connect(lambda v: (self.o.__setitem__("portrait", v == "portrait"), self.reset_crop()))
-        F.addWidget(row(field(tr("比例"), self.aspect), field(tr("方向"), self.orient)))
-        self.auto_inner = Flag(tr("自動避開留白"))
+        F.addWidget(row(field("比例", self.aspect), field("方向", self.orient)))
+        self.auto_inner = Flag("自動避開留白")
         self.auto_inner.setChecked(True)
         self.auto_inner.toggled.connect(self._set_auto_inner)
         self.bg = ColorButton("#000000")
         self.bg.changed.connect(lambda v: self._set("bg", v))
-        crop_btns = hbox(button(tr("填滿"), None, None, tr("裁切框撐滿整張（含留白）"), self.fill_crop),
-                         button(tr("貼齊照片"), None, None, tr("把裁切框收進不含留白的範圍"), self.snap_inside), None, spacing=6)
-        F.addWidget(field(tr("裁切框"), wrap(crop_btns)))
-        F.addWidget(row(field(tr("留白"), self.auto_inner), field(tr("底色"), self.bg)))
+        crop_btns = hbox(button("填滿", None, None, "裁切框撐滿整張（含留白）", self.fill_crop),
+                         button("貼齊照片", None, None, "把裁切框收進不含留白的範圍", self.snap_inside), None, spacing=6)
+        F.addWidget(field("裁切框", wrap(crop_btns)))
+        F.addWidget(row(field("留白", self.auto_inner), field("底色", self.bg)))
 
-        F.addWidget(section(tr("格線")))
+        F.addWidget(section("格線"))
         self.guide = QComboBox()
         for v, lb in GUIDES:
             self.guide.addItem(lb, v)
         self.guide.setCurrentIndex(1)
         self.guide.currentIndexChanged.connect(self._set_guide)
-        self.variant_btn = button(tr("換方向"), None, "rotate", on_click=self._next_variant)
+        self.variant_btn = button("換方向", None, "rotate", on_click=self._next_variant)
         self.variant_btn.setEnabled(False)
-        F.addWidget(row(field(tr("格線"), self.guide), field(tr("方向"), self.variant_btn)))
+        F.addWidget(row(field("格線", self.guide), field("方向", self.variant_btn)))
 
-        F.addWidget(section(tr("匯出")))
+        F.addWidget(section("匯出"))
         self.fmt = QComboBox()
         self.fmt.addItem("JPEG", "jpg")
         self.fmt.addItem("PNG", "png")
         self.fmt.currentIndexChanged.connect(self._on_format)
         self.scale = QComboBox()
-        for v, lb in (("1", tr("原尺寸")), ("0.75", "75%"), ("0.5", "50%"), ("0.25", "25%")):
+        for v, lb in (("1", "原尺寸"), ("0.75", "75%"), ("0.5", "50%"), ("0.25", "25%")):
             self.scale.addItem(lb, v)
-        self.transparent = Flag(tr("留白透明"))
+        self.transparent = Flag("留白透明")
         self.transparent.setEnabled(False)
         self.transparent.toggled.connect(lambda on: self._set("transparent", on))
-        F.addWidget(row(field(tr("格式"), self.fmt), field(tr("尺寸"), self.scale), field(tr("透明"), self.transparent)))
-        self.quality = SliderField(tr("JPEG 品質"), 60, 100, 1, 92, lambda v: f"{v:.0f}%")
+        F.addWidget(row(field("格式", self.fmt), field("尺寸", self.scale), field("透明", self.transparent)))
+        self.quality = SliderField("JPEG 品質", 60, 100, 1, 92, lambda v: f"{v:.0f}%")
         F.addWidget(self.quality)
         F.addStretch(1)
 
@@ -398,7 +395,7 @@ class PhotoEditPage(ToolPage):
             return
         ow, oh = rotated_size(self.full.width(), self.full.height(), self.o["rotate"])
         w, h = round(self.crop["w"] * ow), round(self.crop["h"] * oh)
-        self.size_out.setText(tr('輸出 {0} × {1} px · 比例 {2:.3f}').format(w, h, w / h) if h else "")
+        self.size_out.setText(f'輸出 {w} × {h} px · 比例 {w / h:.3f}' if h else "")
 
     # ---------------------------------------------------------------- 重畫
     def rebuild(self):
@@ -472,10 +469,10 @@ class PhotoEditPage(ToolPage):
         scale = float(self.scale.currentData())
 
         def job(progress):
-            progress(0.1, tr("旋轉與翻轉"))
+            progress(0.1, "旋轉與翻轉")
             ow, oh = rotated_size(src.width(), src.height(), o["rotate"])
             full = render_work(src, o, round(max(ow, oh) * scale))
-            progress(0.7, tr("裁切"))
+            progress(0.7, "裁切")
             return crop_image(full, crop)
 
         return job

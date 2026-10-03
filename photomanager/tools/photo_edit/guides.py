@@ -6,13 +6,12 @@ variant 是「方向」：螺旋與三角構圖有四個角可以起頭，按一
 """
 from __future__ import annotations
 
-from ...i18n import tr
 
-from PySide6.QtCore import QPointF, QRectF
+from PySide6.QtCore import QRectF
 from PySide6.QtGui import QPainterPath, QTransform
 
-GUIDES = [("none", tr("無")), ("thirds", tr("九宮格")), ("golden", tr("黃金比例")), ("spiral", tr("黃金螺旋")),
-          ("triangles", tr("黃金三角")), ("diagonal", tr("對角線法")), ("grid", tr("細格線")), ("center", tr("中心十字"))]
+GUIDES = [("none", "無"), ("thirds", "九宮格"), ("golden", "黃金比例"), ("spiral", "黃金螺旋"),
+          ("triangles", "黃金三角"), ("diagonal", "對角線法"), ("grid", "細格線"), ("center", "中心十字")]
 DIRECTIONAL = {"golden", "spiral", "triangles", "diagonal"}
 
 

@@ -6,7 +6,6 @@
 """
 from __future__ import annotations
 
-from ...i18n import tr
 
 import math
 
@@ -14,8 +13,8 @@ from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QImage, QPainter
 
 ASPECTS = [
-    ("free", tr("自由")), ("source", tr("原圖比例")), ("1", "1:1"), ("1.25", "5:4"), ("1.3333333", "4:3"),
-    ("1.5", "3:2"), ("1.6180339", tr("黃金比例 1.618:1")), ("1.7777778", "16:9"), ("2", "2:1"),
+    ("free", "自由"), ("source", "原圖比例"), ("1", "1:1"), ("1.25", "5:4"), ("1.3333333", "4:3"),
+    ("1.5", "3:2"), ("1.6180339", "黃金比例 1.618:1"), ("1.7777778", "16:9"), ("2", "2:1"),
 ]
 
 
