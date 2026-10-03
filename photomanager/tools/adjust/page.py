@@ -1,6 +1,6 @@
 """調整（參考 Lightroom 的「基本」「色彩混合」「顏色分級」「效果」，再加上聚光燈）。
 
-右邊四個分頁：基本、色彩、效果、聚光燈。拖滑桿時先用小圖快速算一張草稿，
+右邊五個分頁：基本、風格、色彩、效果、聚光燈。「風格」是 iPhone 相機那種攝影風格（styles.py）。拖滑桿時先用小圖快速算一張草稿，
 停下來再用預覽大小算一次；儲存或暫存時才用原尺寸（develop.render 會一段一段算）。
 按住空白鍵看原圖，左下角的「照片參數」有直方圖、波形、向量示波器與曝光數字。
 聚光燈：切到「聚光燈」分頁後在照片上拖曳畫一個區域，裡面提亮、外面壓暗；
@@ -15,17 +15,23 @@ import threading
 
 import numpy as np
 from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QImage, QKeySequence, QPainter, QPen, QPixmap, QShortcut, QTransform
-from PySide6.QtWidgets import QComboBox
+from PySide6.QtGui import QColor, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut, QTransform
+from PySide6.QtWidgets import QComboBox, QGridLayout, QWidget
 
-from ...ui.widgets import ParamSlider, Segmented, SliderField, button, field, hbox, label, notify, row, section, wrap
+from ...ui import theme
+from ...ui.widgets import (ParamSlider, Segmented, SliderField, button, field, hbox, label, notify, row, section, vbox,
+                           wrap)
 from ..common import Stage, ToolPage, safe_name
 from ..depth_blur.page import qimage_to_rgb, rgb_to_qimage
 from . import develop as D
+from . import styles as ST
+from .style_widgets import ControlPad, StyleTile
 
 PREVIEW_EDGE = 1000
 DRAFT_EDGE = 520
 HANDLE = 8
+ROT_GAP = 26          # 旋轉把手離形狀邊緣多遠（像素）
+SHAPES = [("ellipse", tr("橢圓")), ("rect", tr("矩形")), ("beam", tr("光帶"))]
 
 HUE_NAMES = {"red": tr("紅色"), "orange": tr("橙色"), "yellow": tr("黃色"), "green": tr("綠色"), "aqua": tr("水藍色"),
              "blue": tr("藍色"), "purple": tr("紫色"), "magenta": tr("洋紅色")}
@@ -41,6 +47,7 @@ def ev_fmt(v):
 
 class _Relay(QObject):
     done = Signal(object, object, object)     # gen, kind, rgb array
+    thumb = Signal(object, str, object)       # token, 風格名稱, rgb array
 
 
 # ============================================================ 照片區（含聚光燈的編輯）
@@ -78,39 +85,69 @@ class AdjustStage(Stage):
         return c, s["rx"] * edge, s["ry"] * edge, s.get("angle", 0.0)
 
     def _handles(self, s):
+        """改大小的把手 + 一個旋轉把手（形狀上方那顆圓的）。光帶沒有長度，只有寬度的把手。"""
         c, rx, ry, ang = self._geo(s)
         t = QTransform().translate(c.x(), c.y()).rotate(ang)
-        return {"e": t.map(QPointF(rx, 0)), "w": t.map(QPointF(-rx, 0)),
-                "s": t.map(QPointF(0, ry)), "n": t.map(QPointF(0, -ry))}
+        out = {"s": t.map(QPointF(0, ry)), "n": t.map(QPointF(0, -ry))}
+        if s.get("shape", "ellipse") != "beam":
+            out.update(e=t.map(QPointF(rx, 0)), w=t.map(QPointF(-rx, 0)))
+        out["rot"] = t.map(QPointF(0, -ry - ROT_GAP))
+        return out
+
+    def _outline(self, shape, rx, ry, long_side):
+        """形狀的外框路徑（在轉好角度的座標裡，中心是原點）。"""
+        path = QPainterPath()
+        if shape == "beam":
+            for y in (-ry, ry):
+                path.moveTo(-long_side, y)
+                path.lineTo(long_side, y)
+        elif shape == "rect":
+            theme.round_rect(path, QRectF(-rx, -ry, rx * 2, ry * 2), min(rx, ry) * 0.3)
+        else:
+            path.addEllipse(QPointF(0, 0), rx, ry)
+        return path
 
     def _paint_spots(self, p, r):
         p.setBrush(Qt.BrushStyle.NoBrush)
+        long_side = math.hypot(r.width(), r.height())
         for i, s in enumerate(self.tool.p["spots"]):
             c, rx, ry, ang = self._geo(s, r)
+            shape = s.get("shape", "ellipse")
             sel = i == self.tool.sel
             p.save()
+            if shape == "beam":
+                p.setClipRect(r)          # 光帶是無限長的，只畫在照片範圍裡
             p.translate(c)
             p.rotate(ang)
+            outline = self._outline(shape, rx, ry, long_side)
             # 黑邊 + 白線：任何底色上都看得到
             p.setPen(QPen(QColor(0, 0, 0, 120), 3))
-            p.drawEllipse(QPointF(0, 0), rx, ry)
+            p.drawPath(outline)
             pen = QPen(QColor(255, 255, 255, 235 if sel else 150), 1.4)
             if not sel:
                 pen.setStyle(Qt.PenStyle.DashLine)
             p.setPen(pen)
-            p.drawEllipse(QPointF(0, 0), rx, ry)
+            p.drawPath(outline)
             f = max(0.02, s.get("feather", 50) / 100)
             if sel:
                 p.setPen(QPen(QColor(255, 255, 255, 90), 1, Qt.PenStyle.DotLine))
-                p.drawEllipse(QPointF(0, 0), rx * (1 - f), ry * (1 - f))
+                p.drawPath(self._outline(shape, rx * (1 - f), ry * (1 - f), long_side))
+                if shape == "beam":
+                    p.drawLine(QPointF(-long_side, 0), QPointF(long_side, 0))
+                p.setClipping(False)
+                p.setPen(QPen(QColor(255, 255, 255, 170), 1))
+                p.drawLine(QPointF(0, -ry), QPointF(0, -ry - ROT_GAP))
             p.restore()
             p.setPen(QPen(QColor(0, 0, 0, 120), 1))
             p.setBrush(QColor(255, 214, 10) if sel else QColor(255, 255, 255, 200))
             p.drawEllipse(c, 4, 4)
             if sel:
                 p.setBrush(QColor("white"))
-                for pt in self._handles(s).values():
-                    p.drawRect(QRectF(pt.x() - HANDLE / 2, pt.y() - HANDLE / 2, HANDLE, HANDLE))
+                for k, pt in self._handles(s).items():
+                    if k == "rot":
+                        p.drawEllipse(pt, HANDLE / 2 + 1, HANDLE / 2 + 1)
+                    else:
+                        p.drawRect(QRectF(pt.x() - HANDLE / 2, pt.y() - HANDLE / 2, HANDLE, HANDLE))
             p.setBrush(Qt.BrushStyle.NoBrush)
 
     def _hit(self, pos):
@@ -125,7 +162,10 @@ class AdjustStage(Stage):
             dx, dy = pos.x() - c.x(), pos.y() - c.y()
             u = (dx * math.cos(a) + dy * math.sin(a)) / max(rx, 1)
             v = (-dx * math.sin(a) + dy * math.cos(a)) / max(ry, 1)
-            if u * u + v * v <= 1:
+            shape = spots[i].get("shape", "ellipse")
+            inside = abs(v) <= 1 if shape == "beam" else (
+                (abs(u) ** 6 + abs(v) ** 6) <= 1 if shape == "rect" else u * u + v * v <= 1)
+            if inside and (shape != "beam" or self.image_rect().contains(pos)):
                 return i, "move"
         return -1, None
 
@@ -159,7 +199,8 @@ class AdjustStage(Stage):
             elif self.tool.spot_mode():
                 _, kind = self._hit(pos)
                 self.setCursor(Qt.CursorShape.SizeAllCursor if kind == "move" else
-                               Qt.CursorShape.CrossCursor if kind is None else Qt.CursorShape.SizeFDiagCursor)
+                               Qt.CursorShape.CrossCursor if kind is None else
+                               Qt.CursorShape.PointingHandCursor if kind == "rot" else Qt.CursorShape.SizeFDiagCursor)
             else:
                 self.setCursor(Qt.CursorShape.ArrowCursor)
             return
@@ -171,6 +212,25 @@ class AdjustStage(Stage):
         if d["kind"] == "move":
             s["cx"] = min(1.2, max(-0.2, b["cx"] + (pos.x() - d["start"].x()) / r.width()))
             s["cy"] = min(1.2, max(-0.2, b["cy"] + (pos.y() - d["start"].y()) / r.height()))
+        elif d["kind"] == "rot":
+            c, _, _, _ = self._geo(b)
+            ang = math.degrees(math.atan2(pos.y() - c.y(), pos.x() - c.x())) + 90     # 把手在形狀的正上方
+            ang = (ang + 180) % 360 - 180
+            if ang > 90:
+                ang -= 180
+            elif ang < -90:
+                ang += 180
+            s["angle"] = round(ang)
+        elif d["kind"] == "new" and s.get("shape") == "beam":
+            # 光帶：從按下的地方往哪個方向拖，光帶就沿著那個方向；寬度用預設值，之後拖邊上的點改
+            dx, dy = pos.x() - d["start"].x(), pos.y() - d["start"].y()
+            if math.hypot(dx, dy) > 6:
+                ang = math.degrees(math.atan2(dy, dx))
+                if ang > 90:
+                    ang -= 180
+                elif ang < -90:
+                    ang += 180
+                s["angle"] = round(ang)
         else:
             c, _, _, ang = self._geo(b)
             a = math.radians(ang)
@@ -191,7 +251,9 @@ class AdjustStage(Stage):
             d = self._drag
             self._drag = None
             s = self.tool.p["spots"][self.tool.sel]
-            if d["kind"] == "new" and s["rx"] < 0.03 and s["ry"] < 0.03:
+            if d["kind"] == "new" and s.get("shape") == "beam":
+                s["rx"], s["ry"] = 0.5, 0.07
+            elif d["kind"] == "new" and s["rx"] < 0.03 and s["ry"] < 0.03:
                 # 只點一下沒有拖：給一個預設大小
                 s["rx"], s["ry"] = 0.16, 0.2
             self.tool.spots_changed(final=True)
@@ -244,8 +306,9 @@ class AdjustPage(ToolPage):
         return s
 
     def _build(self):
-        tabs = self.add_tabs([("basic", tr("基本")), ("color", tr("色彩")), ("effects", tr("效果")),
-                              ("spot", tr("聚光燈"))])
+        tabs = self.add_tabs([("basic", tr("基本")), ("style", tr("風格")), ("color", tr("色彩")),
+                              ("effects", tr("效果")), ("spot", tr("聚光燈"))])
+        self._build_style(tabs["style"])
         B = tabs["basic"]
         B.addWidget(section(tr("白平衡")))
         self._slider(B, "temp", tr("色溫"), gradient=["#3b78d8", "#d8d8d8", "#e2b23c"])
@@ -306,6 +369,12 @@ class AdjustPage(ToolPage):
         self._slider(E, "grain_size", tr("大小"), 0, 100)
 
         S = tabs["spot"]
+        S.addWidget(label(tr("在照片上拖曳畫出聚光燈：裡面提亮、外面壓暗。拖中間移動、拖邊上的點改大小、拖上方的圓點旋轉，Delete 刪除。"),
+                          "caption", wrap=True))
+        self.shape = Segmented(SHAPES, "ellipse")
+        self.shape.changed.connect(self._set_shape)
+        S.addWidget(field(tr("形狀"), self.shape))
+        S.addWidget(label(tr("光帶是橫跨整張照片的一條光，拖曳的方向就是光帶的方向。"), "caption", wrap=True))
         self.spot_info = label("", "secondary")
         self.del_btn = button(tr("刪除"), None, "trash", tr("刪除選取的聚光燈（Delete）"), self.remove_spot)
         S.addWidget(wrap(hbox(self.spot_info, None,
@@ -334,6 +403,97 @@ class AdjustPage(ToolPage):
         self.fmt.addItem("PNG", "png")
         self.quality = SliderField(tr("JPEG 品質"), 60, 100, 1, 92, lambda v: f"{v:.0f}%")
         F.addWidget(row(field(tr("格式"), self.fmt), self.quality))
+
+    def _build_style(self, Y):
+        Y.addWidget(label(tr("跟 iPhone 相機的「攝影風格」一樣：先挑一個風格，再用控制板與色盤微調。其他分頁的調整會疊在風格上面。"),
+                          "caption", wrap=True))
+        self.style_tiles = {}
+        for title, group in ((tr("膚色基調"), ST.UNDERTONES), (tr("氛圍"), ST.MOODS)):
+            Y.addWidget(section(title))
+            host = QWidget()
+            grid = QGridLayout(host)
+            grid.setContentsMargins(0, 0, 0, 0)
+            grid.setHorizontalSpacing(6)
+            grid.setVerticalSpacing(6)
+            for i, (key, name) in enumerate(group):
+                t = StyleTile(key, name)
+                t.clicked.connect(lambda _=False, k=key: self.set_style(k))
+                grid.addWidget(t, i // 3, i % 3)
+                self.style_tiles[key] = t
+            grid.setColumnStretch(3, 1)
+            Y.addWidget(host)
+        Y.addWidget(section(tr("微調")))
+        self.pad = ControlPad()
+        self.pad.changed.connect(self._set_pad)
+        self.pad.released.connect(self.settle)
+        self.pad_info = label("", "secondary", wrap=True)
+        reset = button(tr("回到中間"), None, "reset", tr("色調、色彩回到中間"), self.reset_pad)
+        side = vbox(self.pad_info, wrap(hbox(reset, None)), None, spacing=8)
+        Y.addWidget(wrap(hbox(self.pad, side, spacing=14)))
+        self.palette_slider = ParamSlider(tr("色盤"), 0, 100, 100, 1, 100, lambda v: f"{v:.0f}")
+        self.palette_slider.changed.connect(lambda v: self._set_style_key("palette", v))
+        self.palette_slider.released.connect(self.settle)
+        Y.addWidget(self.palette_slider)
+        Y.addWidget(label(tr("色盤：風格的顏色有多強（0 = 幾乎只剩明暗的變化）。"), "caption", wrap=True))
+        self._relay.thumb.connect(self._on_thumb)
+        self._thumb_token = None
+        self._sync_style()
+
+    def set_style(self, key):
+        self.p["style"]["name"] = key
+        self._sync_style()
+        self.changed(final=True)
+
+    def _set_pad(self, tone, color):
+        self.p["style"]["tone"], self.p["style"]["color"] = tone, color
+        self._paint_pad_info()
+        self.changed()
+
+    def reset_pad(self):
+        self.p["style"]["tone"] = self.p["style"]["color"] = 0.0
+        self._sync_style()
+        self.changed(final=True)
+
+    def _set_style_key(self, key, v):
+        self.p["style"][key] = v
+        self.changed()
+
+    def _paint_pad_info(self):
+        st = self.p["style"]
+        name = dict(ST.UNDERTONES + ST.MOODS).get(st["name"], "")
+        self.pad_info.setText(tr('{0}\n色調 {1:+.0f}\n色彩 {2:+.0f}').format(name, st["tone"], st["color"]))
+
+    def _sync_style(self):
+        st = self.p["style"]
+        for k, t in self.style_tiles.items():
+            t.setChecked(k == st["name"])
+        self.pad.set_values(st["tone"], st["color"])
+        self.palette_slider.set(st["palette"])
+        self._paint_pad_info()
+
+    def _render_thumbs(self):
+        """每個風格套在這張照片的小圖上，當作格子裡的預覽（背景算，算好一個顯示一個）。"""
+        if self.small is None:
+            return
+        token = self._thumb_token = object()
+        h, w = self.small.shape[:2]
+        k = min(1.0, 180 / max(h, w))
+        from PIL import Image
+        tiny = np.asarray(Image.fromarray(self.small).resize((max(8, round(w * k)), max(8, round(h * k)))))
+
+        def run():
+            for key, _ in ST.UNDERTONES + ST.MOODS:
+                if token is not self._thumb_token:
+                    return
+                q = D.defaults()
+                q["style"]["name"] = key
+                self._relay.thumb.emit(token, key, D.render(tiny, q))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_thumb(self, token, key, arr):
+        if token is self._thumb_token and key in self.style_tiles:
+            self.style_tiles[key].set_pixmap(QPixmap.fromImage(rgb_to_qimage(arr)))
 
     def spot_mode(self):
         return self.tabs.value() == "spot"
@@ -374,6 +534,7 @@ class AdjustPage(ToolPage):
                 s.set(self.p[key])
         self._sync_hsl()
         self._sync_spot()
+        self._sync_style()
 
     def auto(self):
         if self.small is None:
@@ -391,10 +552,24 @@ class AdjustPage(ToolPage):
 
     # ---------------------------------------------------------------- 聚光燈
     def add_spot(self, cx, cy, rx, ry):
-        self.p["spots"].append({"cx": cx, "cy": cy, "rx": rx, "ry": ry, "angle": 0.0, "ev": 0.8, "feather": 60.0,
-                                "warmth": 0.0})
+        shape = self.shape.value()
+        if shape == "beam":
+            rx, ry = 0.5, max(ry, 0.07)
+        self.p["spots"].append({"shape": shape, "cx": cx, "cy": cy, "rx": rx, "ry": ry, "angle": 0.0, "ev": 0.8,
+                                "feather": 60.0, "warmth": 0.0})
         self.sel = len(self.p["spots"]) - 1
         self._sync_spot()
+
+    def _set_shape(self, shape):
+        """形狀：之後畫的聚光燈用這個；有選取的話，選取的那個也換。"""
+        if 0 <= self.sel < len(self.p["spots"]):
+            s = self.p["spots"][self.sel]
+            if s.get("shape", "ellipse") != shape:
+                if shape == "beam":
+                    s["rx"] = 0.5
+                    s["ry"] = min(s["ry"], 0.15)
+                s["shape"] = shape
+                self.spots_changed(final=True)
 
     def select_spot(self, i):
         self.sel = i
@@ -424,6 +599,8 @@ class AdjustPage(ToolPage):
             s.setEnabled(on)
             if on:
                 s.set(spots[self.sel].get(key, s.default))
+        if on:
+            self.shape.setValue(spots[self.sel].get("shape", "ellipse"))
         self.sliders["spot_dim"].setEnabled(bool(spots))
 
     def spots_changed(self, final=False):
@@ -450,6 +627,7 @@ class AdjustPage(ToolPage):
         self.stage.original = self.stage.pix
         self.stage.update()
         self.update_scopes(self.small, self.small)
+        self._render_thumbs()
         self.set_status(f"{img.width()}×{img.height()}")
 
     # ---------------------------------------------------------------- 預覽

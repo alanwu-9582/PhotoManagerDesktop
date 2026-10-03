@@ -2,7 +2,7 @@
 
 順序跟 Lightroom 差不多：
   線性光：白平衡 → 曝光 → 聚光燈（區域曝光 + 周圍壓暗）
-  感知亮度：去朦朧 → 亮部 / 陰影 / 白色 / 黑色 → 對比 → 清晰度 / 紋理
+  感知亮度：去朦朧 → 攝影風格（styles.py）→ 亮部 / 陰影 / 白色 / 黑色 → 對比 → 清晰度 / 紋理
   顏色：自然飽和度 / 飽和度 → 色彩混合（HSL）→ 顏色分級
   最後：暈影 → 顆粒
 
@@ -20,6 +20,7 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 from ..depth_blur.depth import gauss, guided
+from . import styles as ST
 
 MAP_EDGE = 640
 STRIP = 384
@@ -36,8 +37,9 @@ DEFAULTS = {
     "grade": {"sh_hue": 220.0, "sh_sat": 0.0, "hi_hue": 40.0, "hi_sat": 0.0, "balance": 0.0},
     "vignette": 0.0, "vig_mid": 50.0, "vig_feather": 50.0,
     "grain": 0.0, "grain_size": 25.0,
-    "spots": [],          # [{cx, cy, rx, ry, angle, ev, feather, warmth}]，cx/cy 是寬高的比例，rx/ry 是長邊的比例
+    "spots": [],          # [{shape, cx, cy, rx, ry, angle, ev, feather, warmth}]，cx/cy 是寬高的比例，rx/ry 是長邊的比例
     "spot_dim": 35.0,     # 聚光燈以外壓暗多少
+    "style": dict(ST.DEFAULT),   # 攝影風格（iPhone 那種）：名稱、色調、色彩、色盤
 }
 
 
@@ -49,11 +51,11 @@ def defaults():
 def is_identity(p) -> bool:
     d = DEFAULTS
     for k, v in d.items():
-        if k in ("hsl", "grade", "spots", "vig_mid", "vig_feather", "grain_size", "spot_dim"):
+        if k in ("hsl", "grade", "spots", "vig_mid", "vig_feather", "grain_size", "spot_dim", "style"):
             continue
         if abs(p[k] - v) > 1e-9:
             return False
-    if p["spots"]:
+    if p["spots"] or not ST.is_identity(p.get("style", ST.DEFAULT)):
         return False
     if any(abs(x) > 1e-9 for vals in p["hsl"].values() for x in vals):
         return False
@@ -136,6 +138,16 @@ def wb_gains(p):
     return g / float(g @ np.array([0.2126, 0.7152, 0.0722], np.float32))   # 亮度不變，只換顏色
 
 
+def spot_distance(shape, u, v):
+    """聚光燈形狀的「距離」：邊緣 = 1，裡面 < 1。
+    ellipse 橢圓；rect 圓角矩形（超橢圓）；beam 光帶 —— 沿著角度方向無限長的一整條，只看離中線多遠。"""
+    if shape == "beam":
+        return np.abs(v)
+    if shape == "rect":
+        return np.power(np.abs(u) ** 6 + np.abs(v) ** 6, 1 / 6)
+    return np.sqrt(u * u + v * v)
+
+
 def spot_masks(p, xs, ys, W, H):
     """每一個聚光燈的遮罩（0..1）。xs: (W,) 像素中心的 x，ys: (h,) 這幾列的 y。"""
     out = []
@@ -149,7 +161,7 @@ def spot_masks(p, xs, ys, W, H):
         dy = ys[:, None] - cy
         u = (dx * ca + dy * sa) / rx
         v = (-dx * sa + dy * ca) / ry
-        d = np.sqrt(u * u + v * v)
+        d = spot_distance(s.get("shape", "ellipse"), u, v)
         f = max(0.02, s.get("feather", 50) / 100)
         out.append((s, 1 - smoothstep(1 - f, 1 + f * 0.25, d)))
     return out
@@ -215,6 +227,7 @@ def prepare(rgb_u8: np.ndarray, p) -> dict:
         maps["A"] = A
         maps["t"] = np.clip(t, 0.05, 1).astype(np.float32)
         g = _dehaze(g, p["dehaze"] / 100, A, maps["t"])
+    g = ST.apply(g, p.get("style", ST.DEFAULT))
     L = np.clip(luma(g), 0, 1).astype(np.float32)
     edge = max(mw, mh)
     # 亮部 / 陰影看的是「這一帶」的亮度，用保邊的引導濾波，邊界才不會長出光暈。
@@ -340,6 +353,8 @@ def apply_rows(g, p, maps, sampler, y0, W, H, grain=None, gsampler=None):
     out = to_gamma(lin)
     if p["dehaze"] and "t" in maps:
         out = _dehaze(out, p["dehaze"] / 100, maps["A"], sampler.rows(maps["t"], y0, y0 + h))
+    # 攝影風格當作「底片」先套，後面的滑桿在它上面微調（跟 iPhone 拍完再修圖一樣）
+    out = ST.apply(out, p.get("style", ST.DEFAULT))
     L = luma(out)
     base = sampler.rows(maps["base"], y0, y0 + h)
     L2 = _tone(L, base, p)
@@ -408,23 +423,64 @@ def render(rgb_u8: np.ndarray, p, progress=None, cancel=None) -> np.ndarray:
 
 
 def auto_tone(rgb_u8: np.ndarray, p) -> dict:
-    """自動：把中間調拉到 0.45 左右，再把最亮 / 最暗的 0.5% 拉到接近純白 / 純黑。"""
+    """自動色調：不猜公式，直接在小圖上套用、量結果、再修正。
+
+    原則是「補足」而不是「壓平」：中間調只往 0.42 拉一部分（本來就偏亮 / 偏暗的照片保留氣氛），
+    最暗與最亮的 0.5% 用黑色 / 白色拉到接近純黑 / 純白，對比只會加、不會減 ——
+    減對比加上壓亮部、提陰影，照片就會變得灰白霧霧的。
+    """
+    import copy
     H, W = rgb_u8.shape[:2]
     k = min(1.0, 400 / max(H, W))
-    small = np.asarray(Image.fromarray(rgb_u8).resize((max(8, round(W * k)), max(8, round(H * k))))).astype(np.float32) / 255
-    q = dict(p, exposure=0.0, contrast=0.0, highlights=0.0, shadows=0.0, whites=0.0, blacks=0.0, spots=[])
-    lin = stage_linear(small, q, np.zeros(small.shape[1], np.float32), np.zeros(small.shape[0], np.float32), W, H)
-    L = luma(to_gamma(lin))
-    med = float(np.median(L))
-    ev = float(np.clip(2.2 * math.log2(0.45 / max(med, 0.02)), -2.5, 2.5))
-    L2 = luma(to_gamma(lin * 2 ** ev))
-    lo, hi = np.percentile(L2, [0.5, 99.5])
-    spread = hi - lo
-    return {
-        "exposure": round(ev, 2),
-        "whites": round(float(np.clip((0.97 - hi) * 260, -60, 60))),
-        "blacks": round(float(np.clip((lo - 0.03) * -400, -60, 40))),
-        "highlights": round(float(np.clip(-(hi - 0.85) * 200, -70, 0))) if hi > 0.85 else 0,
-        "shadows": round(float(np.clip((0.12 - lo) * 250, 0, 50))) if spread > 0.6 else 0,
-        "contrast": round(float(np.clip((0.75 - spread) * 60, -20, 30))),
-    }
+    small = np.asarray(Image.fromarray(rgb_u8).resize((max(8, round(W * k)), max(8, round(H * k))),
+                                                       Image.Resampling.BILINEAR))
+    q = copy.deepcopy(p)
+    q.update(exposure=0.0, contrast=0.0, highlights=0.0, shadows=0.0, whites=0.0, blacks=0.0, dehaze=0.0,
+             texture=0.0, clarity=0.0, vignette=0.0, grain=0.0, spots=[])
+
+    def measure():
+        out = render(small, q).astype(np.float32) / 255
+        L = luma(out)
+        lo, p5, p10, med, p95, hi = np.percentile(L, [0.5, 5, 10, 50, 95, 99.5])
+        return dict(lo=lo, p5=p5, p10=p10, med=med, p95=p95, hi=hi, clip=float((out.max(axis=2) >= 0.995).mean()),
+                    sat=float((out.max(axis=2) - out.min(axis=2)).mean()))
+
+    m = measure()
+    # 1. 曝光：只修正一部分的差距，而且有上下限
+    ev = 0.6 * 2.2 * math.log2(0.42 / max(m["med"], 0.02))
+    q["exposure"] = float(np.clip(ev, -1.5, 1.5)) if abs(ev) > 0.12 else 0.0
+    m = measure()
+    while q["exposure"] > 0 and m["clip"] > 0.02:          # 提亮不能把亮部燒掉
+        q["exposure"] = max(0.0, q["exposure"] - 0.25)
+        m = measure()
+    # 2. 黑色被抬起來（霧、逆光）：先去朦朧
+    if m["lo"] > 0.12:
+        q["dehaze"] = float(np.clip((m["lo"] - 0.05) * 220, 0, 60))
+        m = measure()
+    # 3. 亮部已經溢出才壓
+    # 已經死白的地方救不回來，壓太多只會變成一片灰；所以最多壓到 -35，讓白色還是白的
+    if m["clip"] > 0.01:
+        q["highlights"] = -float(np.clip(m["clip"] * 500, 12, 35))
+        m = measure()
+    # 4. 黑點、白點：反覆量幾次，拉到接近純黑 / 純白
+    for _ in range(3):
+        if m["lo"] > 0.035 or m["lo"] < 0.008:
+            q["blacks"] = float(np.clip(q["blacks"] + (0.02 - m["lo"]) / 0.0018 * 0.8, -70, 25))
+        if m["hi"] < 0.9 or m["hi"] > 0.985:
+            q["whites"] = float(np.clip(q["whites"] + (0.95 - m["hi"]) / max(0.0035 * m["hi"] ** 3, 0.001) * 0.8,
+                                        -40, 45))
+        m = measure()
+    # 5. 對比只加不減：中間 90% 的範圍太窄（平淡）才加
+    spread = m["p95"] - m["p5"]
+    if spread < 0.6:
+        q["contrast"] = float(np.clip((0.68 - spread) * 90, 0, 30))
+        m = measure()
+    # 6. 暗部整片看不見才稍微提一點陰影
+    if m["p10"] < 0.05 and m["med"] < 0.38:
+        q["shadows"] = float(np.clip((0.05 - m["p10"]) * 500, 0, 30))
+    # 7. 顏色太淡補一點細節飽和度
+    vib = float(np.clip((0.13 - m["sat"]) * 200, 0, 20)) if m["sat"] < 0.13 else 0.0
+    out = {k: round(q[k], 2 if k == "exposure" else 0) for k in
+           ("exposure", "contrast", "highlights", "shadows", "whites", "blacks", "dehaze")}
+    out["vibrance"] = round(vib)
+    return out

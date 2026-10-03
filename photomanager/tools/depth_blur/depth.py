@@ -185,7 +185,8 @@ LEVEL_KERNEL = 14       # 每一層縮小到光圈半徑大約這麼多像素再
 
 
 def aperture_kernel(r: float, blades: int = 0, rotation: float = 0.3) -> np.ndarray:
-    """半徑 r 的光圈形狀（加總 = 1）。blades = 0 是圓形，6、9… 是幾片葉片圍出的多邊形。"""
+    """半徑 r 的光圈形狀（加總 = 1）。blades = 0 是圓形，6、9… 是幾片葉片圍出的多邊形，
+    -1 是圓環（反射式鏡頭中間有一面鏡子擋住，散景會是甜甜圈形狀）。"""
     n = max(1, int(np.ceil(r)))
     yy, xx = np.mgrid[-n:n + 1, -n:n + 1].astype(np.float32)
     dist = np.hypot(xx, yy)
@@ -194,6 +195,8 @@ def aperture_kernel(r: float, blades: int = 0, rotation: float = 0.3) -> np.ndar
         th = (np.arctan2(yy, xx) - rotation) % seg - seg / 2
         dist = dist * np.cos(th) / np.cos(seg / 2)        # 多邊形的「距離」：邊上 = r
     k = np.clip(r + 0.5 - dist, 0, 1)                     # 邊緣抗鋸齒一個像素
+    if blades == -1:
+        k = k - np.clip(r * 0.55 + 0.5 - dist, 0, 1)      # 挖掉中間 55%
     # 真的鏡頭散景邊緣稍微亮一點（球面像差），加一點點就好
     k = k * (1 + 0.18 * np.clip((dist / max(r, 1)) ** 4, 0, 1))
     return (k / k.sum()).astype(np.float32)

@@ -28,7 +28,7 @@ from . import model
 PREVIEW_EDGE = 1100
 BINS = 64
 F_STOPS = [1.2, 1.4, 1.8, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0]
-BLADES = [("0", tr("圓形")), ("9", tr("9 葉")), ("6", tr("6 葉"))]
+BLADES = [(0, tr("圓形")), (9, tr("9 葉")), (7, tr("7 葉")), (6, tr("6 葉")), (5, tr("5 葉")), (-1, tr("圓環"))]
 
 
 def max_radius(f_number, edge):
@@ -302,9 +302,11 @@ class DepthBlurPage(ToolPage):
         self.feather = SliderField(tr("過渡"), 1, 50, 1, 8, lambda v: f"{v:.0f}%")
         self.feather.committed.connect(lambda *_: self.schedule())
         F.addWidget(row(field(tr("光圈"), self.aperture), self.feather))
-        self.blades = Segmented(BLADES, "0")
-        self.blades.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)   # 跟上下的控制項同寬
-        self.blades.changed.connect(lambda *_: self.schedule())
+        # 光圈形狀：圓形、幾片葉片圍出的多邊形，或反射鏡頭那種中間空心的圓環
+        self.blades = QComboBox()
+        for v, lb in BLADES:
+            self.blades.addItem(lb, v)
+        self.blades.currentIndexChanged.connect(lambda *_: self.schedule())
         self.bokeh = SliderField(tr("散景亮點"), 0, 100, 1, 50, lambda v: f"{v:.0f}")
         self.bokeh.committed.connect(lambda *_: self.schedule())
         F.addWidget(row(field(tr("光圈形狀"), self.blades), self.bokeh))
@@ -409,7 +411,7 @@ class DepthBlurPage(ToolPage):
     # ---------------------------------------------------------------- 預覽
     def params(self):
         return (self.hist.lo, self.hist.hi, self.feather.value() / 100, self.bg_only.isChecked(),
-                float(self.aperture.value()), int(self.blades.value()), self.bokeh.value() / 100)
+                float(self.aperture.value()), int(self.blades.currentData()), self.bokeh.value() / 100)
 
     def schedule(self):
         if self.depth is not None:
