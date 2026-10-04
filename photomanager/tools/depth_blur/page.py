@@ -319,6 +319,13 @@ class DepthBlurPage(ToolPage):
         w.setLayout(lay)
         return w
 
+    def on_models_changed(self):
+        model.reset()
+        self.method = ""
+        self._paint_method()
+        if self.small is not None:
+            self.detect()            # 用新的方法重新偵測
+
     def _paint_method(self):
         has_rt, has_model = model.runtime_available(), model.installed()
         self.dl_btn.setVisible(has_rt and not has_model)

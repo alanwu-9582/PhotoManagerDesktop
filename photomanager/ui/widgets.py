@@ -360,8 +360,9 @@ class Stepper(QWidget):
             self.changed.emit(self.value())
 
     def _text_w(self):
+        """中間顯示值的寬度：放得下最長的選項，而且至少是兩側箭頭鈕的兩倍，數值才是主角。"""
         fm = QFontMetrics(theme.font("callout", 600))
-        return max(fm.horizontalAdvance(t) for _, t in self._options) + 16
+        return max(max(fm.horizontalAdvance(t) for _, t in self._options) + 16, self.BTN * 2)
 
     def sizeHint(self):
         return QSize(self.BTN * 2 + self._text_w(), theme.CONTROL_H)

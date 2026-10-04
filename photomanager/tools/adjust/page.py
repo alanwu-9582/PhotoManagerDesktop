@@ -1,6 +1,7 @@
 """調整（參考 Lightroom 的「基本」「色彩混合」「顏色分級」「效果」，再加上聚光燈）。
 
-右邊五個分頁：基本、風格、色彩、效果、聚光燈。「風格」是 iPhone 相機那種攝影風格（styles.py）。拖滑桿時先用小圖快速算一張草稿，
+右邊六個分頁：基本、風格、色彩、效果、聚光燈、遮罩。「遮罩」辨識主體（subject.py），
+可以遮罩主體或遮罩非主體：被遮住的地方維持原樣，所有調整只套在沒有遮住的地方。「風格」是 iPhone 相機那種攝影風格（styles.py）。拖滑桿時先用小圖快速算一張草稿，
 停下來再用預覽大小算一次；儲存或暫存時才用原尺寸（develop.render 會一段一段算）。
 按住空白鍵看原圖，左下角的「照片參數」有直方圖、波形、向量示波器與曝光數字。
 聚光燈：切到「聚光燈」分頁後在照片上拖曳畫一個區域，裡面提亮、外面壓暗；
@@ -17,12 +18,14 @@ from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QKeySequence, QPainter, QPainterPath, QPen, QPixmap, QShortcut, QTransform
 from PySide6.QtWidgets import QComboBox, QGridLayout, QWidget
 
-from ...ui import theme
-from ...ui.widgets import ParamSlider, Segmented, SliderField, button, field, hbox, label, row, section, vbox, wrap
+from ...ui import dialogs, theme
+from ...ui.widgets import (Flag, ParamSlider, Segmented, SliderField, button, field, hbox, label, notify, row, section,
+                           vbox, wrap)
 from ..common import Stage, ToolPage, safe_name
 from ..depth_blur.page import qimage_to_rgb, rgb_to_qimage
 from . import develop as D
 from . import styles as ST
+from . import subject as SB
 from .style_widgets import ControlPad, StyleTile
 
 PREVIEW_EDGE = 1000
@@ -47,6 +50,9 @@ class _Relay(QObject):
     done = Signal(object, object, object)     # gen, kind, rgb array
     detail = Signal(object, object, object, object, object)   # token, gen, 成品, 原圖, 區域
     thumb = Signal(object, str, object)       # token, 風格名稱, rgb array
+    subject = Signal(object, object, str)     # token, 主體遮罩 | None, 方法 / 錯誤
+    download = Signal(int, int)
+    download_done = Signal(object)
 
 
 # ============================================================ 照片區（含聚光燈的編輯）
@@ -62,6 +68,9 @@ class AdjustStage(Stage):
         if not self.pix:
             return
         self.paint_photo(p, self.pix)
+        ov = self.tool.mask_overlay()
+        if ov is not None and not self.comparing:
+            p.drawImage(self.image_rect(), ov)       # 被遮住（不會調整）的地方蓋一層紅
         if self.editing_spots() and not self.comparing:
             self._paint_spots(p, self.image_rect())
 
@@ -325,8 +334,9 @@ class AdjustPage(ToolPage):
 
     def _build(self):
         tabs = self.add_tabs([("basic", "基本"), ("style", "風格"), ("color", "色彩"),
-                              ("effects", "效果"), ("spot", "聚光燈")])
+                              ("effects", "效果"), ("spot", "聚光燈"), ("mask", "遮罩")])
         self._build_style(tabs["style"])
+        self._build_mask(tabs["mask"])
         B = tabs["basic"]
         B.addWidget(section("白平衡"))
         self._slider(B, "temp", "色溫", gradient=["#3b78d8", "#d8d8d8", "#e2b23c"])
@@ -503,10 +513,161 @@ class AdjustPage(ToolPage):
         if token is self._thumb_token and key in self.style_tiles:
             self.style_tiles[key].set_pixmap(QPixmap.fromImage(rgb_to_qimage(arr)))
 
+    # ---------------------------------------------------------------- 遮罩
+    def _build_mask(self, M):
+        self.subject = self.mask_eff = None
+        self._overlay = None
+        self._subject_token = None
+        M.addWidget(section("主體"))
+        self.subject_label = label("", "secondary")
+        self.redetect_btn = button("重新辨識", None, "refresh", "再辨識一次主體", self.detect_subject)
+        self.sb_dl_btn = button(f"下載 AI 主體模型（約 {SB.MODEL_SIZE_MB:g} MB）", "plain", "download",
+                                "辨識得更準，只需要下載一次", self.ask_subject_download)
+        M.addWidget(wrap(hbox(self.subject_label, None, self.redetect_btn, spacing=6)))
+        M.addWidget(wrap(hbox(self.sb_dl_btn, None)))
+        M.addWidget(section("遮罩"))
+        self.mask_mode = Segmented([("none", "不遮罩"), ("subject", "遮罩主體"), ("background", "遮罩非主體")], "none")
+        self.mask_mode.setToolTip("被遮住的地方維持原樣，調整只套在沒有遮住的地方")
+        self.mask_mode.changed.connect(self._set_mask_mode)
+        M.addWidget(self.mask_mode)
+        self.mask_sliders = {}
+        for key, title, lo, hi, tip in (("shift", "範圍", -100, 100, "主體的範圍往外擴（+）或往內縮（−）"),
+                                        ("feather", "羽化", 0, 100, "遮罩邊緣柔和的程度")):
+            s = ParamSlider(title, lo, hi, D.DEFAULTS["mask"][key], 1, D.DEFAULTS["mask"][key])
+            s.setToolTip(tip)
+            s.changed.connect(lambda v, k=key: self._set_mask_key(k, v))
+            s.released.connect(self.settle)
+            self.mask_sliders[key] = s
+            M.addWidget(s)
+        self.show_mask = Flag("顯示遮罩範圍")
+        self.show_mask.setChecked(True)
+        self.show_mask.setToolTip("用紅色標出被遮住、不會調整的地方")
+        self.show_mask.toggled.connect(lambda *_: self.stage.update())
+        M.addWidget(self.show_mask)
+        self._relay.subject.connect(self._on_subject)
+        self._relay.download.connect(self._on_sb_download)
+        self._relay.download_done.connect(self._on_sb_downloaded)
+        self._paint_subject_method()
+
+    def on_models_changed(self):
+        self._paint_subject_method()
+        if self.subject is not None:
+            self.subject = None
+            self.detect_subject()     # 換了辨識方法，重新辨識
+
+    def _paint_subject_method(self, busy=False):
+        if busy:
+            self.subject_label.setText("辨識中…")
+        else:
+            self.subject_label.setText(SB.method_name())
+        self.subject_label.setToolTip("U²-Net-p 顯著物體偵測" if SB.method_name().startswith("AI") else
+                                      "依顏色、遠近與位置估計，主體清楚時堪用；下載 AI 模型會準確很多")
+        self.sb_dl_btn.setVisible(SB.runtime_available() and not SB.installed())
+
+    def detect_subject(self):
+        if self.small is None:
+            return
+        token = self._subject_token = object()
+        rgb = self.small
+        self._paint_subject_method(busy=True)
+
+        def run():
+            try:
+                m, how = SB.detect(rgb)
+                self._relay.subject.emit(token, m, how)
+            except Exception as e:  # noqa: BLE001
+                self._relay.subject.emit(token, None, str(e))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_subject(self, token, m, how):
+        if token is not self._subject_token:
+            return
+        if m is None:
+            self.subject_label.setText("辨識失敗")
+            self.subject_label.setToolTip(how)
+            return
+        self.subject = m
+        self._paint_subject_method()
+        self._update_mask()
+
+    def _set_mask_mode(self, mode):
+        self.p["mask"]["mode"] = mode
+        if mode != "none" and SB.runtime_available() and not SB.installed() and not getattr(self, "_sb_offered", False):
+            # 快速估計在人多、背景複雜的照片常常不準；第一次用遮罩時問一次要不要下載 AI 模型
+            self._sb_offered = True
+            QTimer.singleShot(0, self.ask_subject_download)
+        if mode != "none" and self.subject is None:
+            self.detect_subject()         # 第一次用到才辨識；算好之後 _on_subject 會套用
+        self._update_mask()
+
+    def _set_mask_key(self, key, v):
+        self.p["mask"][key] = v
+        self._update_mask(final=False)
+
+    def _update_mask(self, final=True):
+        mk = self.p["mask"]
+        self.mask_eff = SB.effective(self.subject, mk["mode"], mk["feather"], mk["shift"])
+        self._overlay = None
+        if self.mask_eff is not None:
+            rgba = SB.overlay_rgba(self.mask_eff)
+            h, w = rgba.shape[:2]
+            self._overlay = QImage(rgba.data, w, h, w * 4, QImage.Format.Format_ARGB32_Premultiplied).copy()
+        for s in self.mask_sliders.values():
+            s.setEnabled(mk["mode"] != "none")
+        self.stage.update()
+        self.changed(final=final)
+
+    def mask_overlay(self):
+        if self.tabs.value() == "mask" and self.show_mask.isChecked():
+            return self._overlay
+        return None
+
+    def _sync_mask(self):
+        mk = self.p["mask"]
+        self.mask_mode.setValue(mk["mode"])
+        for k, s in self.mask_sliders.items():
+            s.set(mk[k])
+            s.setEnabled(mk["mode"] != "none")
+
+    def ask_subject_download(self):
+        if not dialogs.confirm(
+                self.win, "下載 AI 主體模型？",
+                f"快速估計在人多、背景複雜的照片常常不準。\n\n檔案：U²-Net-p 顯著物體偵測（ONNX）\n"
+                f"來源：{SB.MODEL_SOURCE}\n大小：約 {SB.MODEL_SIZE_MB:g} MB\n\n"
+                "只需要下載一次，之後離線也能用。照片不會被上傳。", confirm_text="下載"):
+            return
+        self.sb_dl_btn.setEnabled(False)
+
+        def run():
+            try:
+                SB.download(lambda d, t: self._relay.download.emit(d, t))
+                self._relay.download_done.emit(None)
+            except Exception as e:  # noqa: BLE001
+                self._relay.download_done.emit(e)
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_sb_download(self, done, total):
+        self.sb_dl_btn.setText(f"下載中… {done / 1e6:.1f} / {total / 1e6:.1f} MB" if total else f"下載中… {done / 1e6:.1f} MB")
+
+    def _on_sb_downloaded(self, error):
+        self.sb_dl_btn.setEnabled(True)
+        self.sb_dl_btn.setText(f"下載 AI 主體模型（約 {SB.MODEL_SIZE_MB:g} MB）")
+        if error:
+            dialogs.alert(self.win, "下載失敗", str(error), tone="danger")
+            return
+        notify("AI 主體模型已就緒", "success")
+        self._paint_subject_method()
+        if self.small is not None:
+            self.detect_subject()
+
     def spot_mode(self):
         return self.tabs.value() == "spot"
 
     def on_tab(self, key):
+        if key == "mask" and self.subject is None and self.small is not None:
+            self.detect_subject()          # 切到遮罩分頁就先辨識好，選遮罩方式時不用等
         self.stage.hud.overlay.setVisible(key == "spot")
         self.stage.place_overlays()
         self.stage.update()
@@ -545,6 +706,7 @@ class AdjustPage(ToolPage):
         self._sync_hsl()
         self._sync_spot()
         self._sync_style()
+        self._sync_mask()
 
     def auto(self):
         if self.small is None:
@@ -557,6 +719,7 @@ class AdjustPage(ToolPage):
         self.p = D.defaults()
         self.sel = -1
         self._sync_all()
+        self._update_mask(final=False)
         self.changed(final=True)
         self.stage.update()
 
@@ -632,7 +795,12 @@ class AdjustPage(ToolPage):
         # 每張新照片（包括別的工具傳過來的結果）都從零開始，免得同一個調整被套兩次
         self.p = D.defaults()
         self.sel = -1
+        self.subject = self.mask_eff = self._overlay = None
+        self._subject_token = None
         self._sync_all()
+        self._paint_subject_method()
+        if self.tabs.value() == "mask":
+            self.detect_subject()
         self.stage.pix = QPixmap.fromImage(small)
         self.stage.original = self.stage.pix
         self.stage.set_detail(None, None)
@@ -665,10 +833,10 @@ class AdjustPage(ToolPage):
         if arr is None:
             return
         gen = self.gen
-        p = _copy(self.p)
+        p, mask = _copy(self.p), self.mask_eff
 
         def run():
-            out = D.render(arr, p, cancel=lambda: gen != self.gen)
+            out = D.render(arr, p, cancel=lambda: gen != self.gen, mask=mask)
             if out is not None:
                 self._relay.done.emit(gen, kind, out)
 
@@ -691,11 +859,11 @@ class AdjustPage(ToolPage):
             self.stage.set_detail(None, None)
             return
         token = self._detail_token = object()
-        gen, p, small = self.gen, _copy(self.p), self.small
+        gen, p, small, mask = self.gen, _copy(self.p), self.small, self.mask_eff
 
         def run():
             rgb = qimage_to_rgb(req["img"])
-            out = D.render_region(rgb, p, D.prepare(small, p), req["W"], req["H"], req["x0"], req["y0"])
+            out = D.render_region(rgb, p, D.prepare(small, p), req["W"], req["H"], req["x0"], req["y0"], mask=mask)
             self._relay.detail.emit(token, gen, out, rgb, req["region"])
 
         threading.Thread(target=run, daemon=True).start()
@@ -712,12 +880,12 @@ class AdjustPage(ToolPage):
     def output_job(self):
         if self.full is None:
             return None
-        full, p = self.full, _copy(self.p)
+        full, p, mask = self.full, _copy(self.p), self.mask_eff
 
         def job(progress):
             progress(0.03, "準備原尺寸")
             rgb = qimage_to_rgb(full)
-            out = D.render(rgb, p, progress=lambda f: progress(0.05 + 0.8 * f, "套用調整"))
+            out = D.render(rgb, p, progress=lambda f: progress(0.05 + 0.8 * f, "套用調整"), mask=mask)
             return rgb_to_qimage(out)
 
         return job

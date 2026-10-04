@@ -13,8 +13,7 @@
         "geometric",
         "paper"
       ],
-      "language": "en",
-      "thumbnails": []
+      "language": "en"
     },
     {
       "id": "watercolor-grid-collage",
@@ -28,8 +27,7 @@
         "watercolor",
         "grid"
       ],
-      "language": "zh-Hant",
-      "thumbnails": []
+      "language": "en"
     }
   ]
 }

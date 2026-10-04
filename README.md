@@ -67,6 +67,7 @@ PhotoManagerDesktop/
 ├─ run.bat                  # Windows 啟動腳本
 ├─ requirements.txt         # Python 相依套件
 ├─ PhotoManager.spec        # PyInstaller 打包設定
+├─ docs/介面設計規範.md     # 介面設計規範（顏色、字體、元件、版面；不含功能，可套用到其他工具）
 ├─ packaging/               # build.bat、安裝檔腳本（installer.iss）、繁中安裝精靈文字、圖示
 └─ photomanager/
    ├─ app.py                # 主視窗、頁面路由、快捷鍵與主題

@@ -7,10 +7,11 @@
 from __future__ import annotations
 
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QColor
 import os
 import shutil
+import threading
 import time
 
 from PySide6.QtGui import QGuiApplication
@@ -24,6 +25,7 @@ from ..engine.history import history
 
 from ..engine.categories import ACTIONS, action_label, categories
 from ..engine.library import library
+from ..engine import models
 from ..ui import dialogs, theme
 from ..ui.dialogs import scroll
 from ..ui.photogrid import text_on
@@ -420,9 +422,127 @@ class GeneralPanel(QWidget):
 
 
 # ============================================================ 設定頁
+class _ModelRelay(QObject):
+    progress = Signal(str, int, int)        # key, 已下載, 總共
+    done = Signal(str, object)              # key, error | None
+
+
+class ModelsPanel(QWidget):
+    """已下載的 AI 模型：每個模型一塊，看狀態、下載或刪除。"""
+
+    def __init__(self, window):
+        super().__init__()
+        self.win = window
+        self.relay = _ModelRelay()
+        self.relay.progress.connect(self._on_progress)
+        self.relay.done.connect(self._on_done)
+        self.rows = {}
+        self.busy = set()
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(12)
+        for m in models.all_models():
+            status = label("", "secondary")
+            action = button("", None, None)
+            action.clicked.connect(lambda _=False, mm=m: self.act(mm))
+            box = QFrame()
+            box.setProperty("group", True)
+            box.setLayout(vbox(hbox(label(m.name, "headline"), label(m.purpose, "secondary"), None, spacing=10),
+                               hbox(status, None, action, spacing=8), spacing=10, margins=(16, 14, 16, 14)))
+            box.setToolTip(f"來源：{m.module.MODEL_SOURCE}\n位置：{m.path}")
+            self.rows[m.key] = (m, status, action)
+            lay.addWidget(box)
+        self.total = label("", "secondary")
+        folder = button("開啟模型資料夾", None, "folder", str(models.MODELS_DIR),
+                        lambda: self._open_folder())
+        foot = QFrame()
+        foot.setProperty("group", True)
+        foot.setLayout(vbox(hbox(self.total, None, folder, spacing=8), spacing=10, margins=(16, 14, 16, 14)))
+        lay.addWidget(foot)
+        lay.addStretch(1)
+
+    def _open_folder(self):
+        from ..engine.prompts import open_folder
+        open_folder(models.MODELS_DIR)
+
+    def refresh(self):
+        from ..state import fmt_bytes
+        rt = models.runtime_available()
+        total = 0
+        for key, (m, status, action) in self.rows.items():
+            if key in self.busy:
+                continue
+            size = m.size_bytes()
+            total += size
+            if m.installed():
+                status.setText(f"已下載 · {fmt_bytes(size)}")
+                action.setText("刪除")
+                action.setProperty("kind", "danger-plain")
+                action.setToolTip("刪除模型檔；需要時可以再下載")
+                action.setEnabled(True)
+            else:
+                status.setText(f"未下載（約 {m.module.MODEL_SIZE_MB:g} MB）")
+                action.setText("下載")
+                action.setProperty("kind", None)
+                action.setEnabled(rt)
+                action.setToolTip("" if rt else "沒有安裝 onnxruntime，無法使用 AI 模型")
+            action.style().unpolish(action)
+            action.style().polish(action)
+        self.total.setText(f"共使用 {fmt_bytes(total)}" if total else "還沒有下載任何模型")
+
+    def act(self, m):
+        if m.key in self.busy:
+            return
+        if m.installed():
+            if not dialogs.confirm(self.win, f"刪除「{m.name}」？", "刪除後會改用內建的快速估計；需要時可以再下載。",
+                                   tone="danger", confirm_text="刪除"):
+                return
+            try:
+                m.delete()
+            except OSError as e:
+                dialogs.alert(self.win, "刪除失敗", str(e), tone="danger")
+                return
+            notify(f"已刪除「{m.name}」", "success")
+            self.refresh()
+            self.win.models_changed()
+            return
+        if not dialogs.confirm(self.win, f"下載「{m.name}」？",
+                               f"{m.purpose}\n來源：{m.module.MODEL_SOURCE}\n大小：約 {m.module.MODEL_SIZE_MB:g} MB\n\n"
+                               "只需要下載一次，之後離線也能用。照片不會被上傳。", confirm_text="下載"):
+            return
+        self.busy.add(m.key)
+        _, status, action = self.rows[m.key]
+        action.setEnabled(False)
+        status.setText("下載中…")
+
+        def run():
+            try:
+                m.module.download(lambda d, t: self.relay.progress.emit(m.key, d, t))
+                self.relay.done.emit(m.key, None)
+            except Exception as e:  # noqa: BLE001
+                self.relay.done.emit(m.key, e)
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_progress(self, key, done, total):
+        _, status, _ = self.rows[key]
+        status.setText(f"下載中… {done / 1e6:.1f} / {total / 1e6:.1f} MB" if total else f"下載中… {done / 1e6:.1f} MB")
+
+    def _on_done(self, key, error):
+        self.busy.discard(key)
+        m = self.rows[key][0]
+        m.module.reset()
+        if error:
+            dialogs.alert(self.win, "下載失敗", str(error), tone="danger")
+        else:
+            notify(f"「{m.name}」已就緒", "success")
+        self.refresh()
+        self.win.models_changed()
+
+
 class SettingsPage(Page):
     title = "設定"
-    TABS = [("categories", "分類設定"), ("history", "操作紀錄"), ("general", "外觀與快取")]
+    TABS = [("categories", "分類設定"), ("history", "操作紀錄"), ("general", "外觀與快取"), ("models", "AI 模型")]
 
     def __init__(self, window):
         super().__init__(window)
@@ -431,7 +551,7 @@ class SettingsPage(Page):
         self.toolbar.addWidget(self.tabs)
         self.stack = QStackedWidget()
         self.panels = {"categories": CategoryPanel(window), "history": HistoryPanel(window),
-                       "general": GeneralPanel(window)}
+                       "general": GeneralPanel(window), "models": ModelsPanel(window)}
         for w in self.panels.values():
             self.stack.addWidget(w)
         self.root.addWidget(self.stack, 1)
@@ -439,8 +559,8 @@ class SettingsPage(Page):
     def show_tab(self, key):
         self.tabs.setValue(key)
         self.stack.setCurrentWidget(self.panels[key])
-        if key == "general":
-            self.panels["general"].refresh()
+        if key in ("general", "models"):
+            self.panels[key].refresh()
 
     def on_show(self):
         self.show_tab(self.tabs.value())

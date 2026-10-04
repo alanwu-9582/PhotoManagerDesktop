@@ -1,12 +1,38 @@
-根據[輸入照片]攝影×水彩方格拼貼"藝術海報，整體清新、明亮，有細膩的手工紙張質感。
-【版式】使用暖白色水彩紙背景，紙紋細微、乾淨。拼貼主體居中或稍偏右，佔寬度約70%—80%，周圍保留空白，左側可安排短句。
-【方格重構】
-將照片中的主要內容重新繪製成數百枚小型方形色片組成的圖像。色片沿統一的水平、垂直網格排列，主體橫向約由30—45格構成，方塊大小基本一致，局部允許輕微尺寸與位置偏差。方塊之間露出纖細、不完全均勻的紙白縫隙，邊角略柔軟、不規則。
-每格承接原圖對應位置的顏色與明暗，多個方格共同形成可辨識的主體。保留人物姿態、服裝主色、物體比例、關鍵輪廓與空間方向。細節適度概括，避免將原照片直接覆蓋網格。人物與單體物品優先提取主體，僅保留少量環境色；風景保留天空、地平線、水面和地形的大關係。
-【水彩紙片質感】
-每枚方格像獨立染色、輕微壓皺的薄水彩紙片，內部帶透明水彩濃淡、顏料沉積、細小暈染、紙纖維和輕微折痕。同一色區有自然色差，亮處透出紙白，深處保留顏料顆粒。紙片幾乎貼平底紙，僅有極輕微邊緣陰影，不呈現厚重瓷磚、玻璃或塑料質感。整體色彩鮮明通透，保留原圖關鍵色相，不統一泛黃。
-【邊緣消散】
-核心主體區域方格密集、連續，靠近輪廓逐漸出現缺格與空隙，外圍散落少量獨立方塊。散落方塊延續附近主體顏色，並大致遵循原網格位置。消散疏密有變化，不能均勻撒滿背景，不形成完整矩形邊框。重要識別部位保持連貫。
-【文字】
-文案：[指定短句／自動生成簡短英文短句／無]。使用灰藍色細線手寫體，分2—4行置於側面留白；可配一處極小的疏排襯線英文和細短橫線。原物體上的關鍵文字忠實保留，可跨越方格連續呈現，不編造字符。無大標題和水印。
-避免：數碼打碼、8位遊戲像素、純色硬方塊、瓷磚填縫、玻璃反光、厚重浮雕、整圖網格濾鏡、過量碎屑、主體無法辨認、密集文字。
+Create an art poster based on [input photo], combining photography × watercolor square collage aesthetics. The overall feeling should be fresh, bright, and airy, with a delicate handmade paper texture throughout.
+[Layout]
+Use a warm white watercolor paper background, with a subtle, clean paper grain.
+Place the collage subject in the center or slightly to the right, occupying about 70%–80% of the total width, while leaving generous blank space around it. A short sentence may be placed on the left side.
+[Square-grid reconstruction]
+Redraw the main content of the photo as an image composed of hundreds of small square color pieces.
+The squares should be arranged along a consistent horizontal and vertical grid. The main subject should span დაახლოებით 30–45 squares across horizontally. The square pieces should be mostly uniform in size, though slight local variations in size and position are allowed.
+Leave thin, slightly irregular white paper gaps visible between the squares. The square edges should be slightly soft and irregular rather than perfectly sharp.
+Each square should inherit the color and light-dark value of the corresponding area in the original image, so that many squares together form a recognizable subject. Preserve the person’s pose, main clothing colors, object proportions, key contours, and spatial direction. Simplify details appropriately, but do not simply overlay a grid directly on top of the original photo.
+For people and isolated objects, prioritize extracting the main subject and retain only a small amount of surrounding environmental color.
+For landscapes, preserve the major relationships of sky, horizon, water surface, and terrain.
+[Watercolor paper piece texture]
+Each square should look like an individually dyed, lightly wrinkled piece of thin watercolor paper. Within each square, show transparent watercolor variation, pigment deposits, subtle bleeding, paper fibers, and slight creases.
+Within the same color area, allow natural color variation. Highlights should let the paper white show through, while darker areas should retain visible pigment granulation.
+The paper pieces should lie almost flat against the background paper, with only very slight edge shadows. They should not look like thick tiles, glass, or plastic.
+The overall color should be vivid and luminous, preserving the key hues of the original image, without applying a uniform yellow cast.
+[Edge dissolution]
+In the core subject area, the squares should be dense and continuous.
+As the image approaches the outer contours, gradually introduce missing squares and gaps, with a small number of individual squares scattering outward.
+These scattered squares should continue the nearby subject colors and roughly follow the original grid positions. The density of this dissolution should vary naturally — it must not be evenly sprinkled across the whole background, and it must not form a complete rectangular border.
+Important identifying features of the subject must remain coherent and continuous.
+[Text]
+Copy: [specified short sentence / automatically generated short English phrase / none].
+Use a gray-blue thin-line handwritten script, arranged in 2–4 lines within the side blank space. You may also add one very small line of loosely tracked serif English text and a short thin horizontal line.
+Any key text that exists on the original object should be faithfully preserved, and may continue seamlessly across multiple squares. Do not invent characters.
+There should be no large headline and no watermark.
+Avoid
+Avoid:
+digital censorship mosaic,
+8-bit game pixel art,
+hard flat color squares,
+tile grout effects,
+glass reflections,
+heavy embossing,
+full-image grid filter effects,
+excessive debris,
+an unrecognizable subject,
+and dense text.

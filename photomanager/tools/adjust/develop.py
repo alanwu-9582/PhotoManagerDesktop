@@ -40,6 +40,8 @@ DEFAULTS = {
     "spots": [],          # [{shape, cx, cy, rx, ry, angle, ev, feather, warmth}]，cx/cy 是寬高的比例，rx/ry 是長邊的比例
     "spot_dim": 35.0,     # 聚光燈以外壓暗多少
     "style": dict(ST.DEFAULT),   # 攝影風格（iPhone 那種）：名稱、色調、色彩、色盤
+    # 主體遮罩：none / subject（遮罩主體，只調整背景）/ background（遮罩非主體，只調整主體）
+    "mask": {"mode": "none", "feather": 30.0, "shift": 0.0},
 }
 
 
@@ -51,7 +53,7 @@ def defaults():
 def is_identity(p) -> bool:
     d = DEFAULTS
     for k, v in d.items():
-        if k in ("hsl", "grade", "spots", "vig_mid", "vig_feather", "grain_size", "spot_dim", "style"):
+        if k in ("hsl", "grade", "spots", "vig_mid", "vig_feather", "grain_size", "spot_dim", "style", "mask"):
             continue
         if abs(p[k] - v) > 1e-9:
             return False
@@ -347,8 +349,11 @@ def _grain_field(p, W, H):
     return rng.standard_normal((gh, gw)).astype(np.float32)
 
 
-def apply_rows(g, p, maps, sampler, y0, W, H, grain=None, gsampler=None, x0=0):
-    """g: 一塊 sRGB 0..1（h×w×3），左上角在整張（W×H）的 (x0, y0)；回傳處理好的 0..1。"""
+def apply_rows(g, p, maps, sampler, y0, W, H, grain=None, gsampler=None, x0=0, mask=None, msampler=None):
+    """g: 一塊 sRGB 0..1（h×w×3），左上角在整張（W×H）的 (x0, y0)；回傳處理好的 0..1。
+
+    mask（0..1，任意大小）是要保護的地方：1 的地方維持原樣、0 的地方完全套用調整，中間依比例混合。
+    """
     h, w = g.shape[:2]
     xs = np.arange(x0, x0 + w, dtype=np.float32) + 0.5
     ys = np.arange(y0, y0 + h, dtype=np.float32) + 0.5
@@ -385,17 +390,22 @@ def apply_rows(g, p, maps, sampler, y0, W, H, grain=None, gsampler=None, x0=0):
         Lc = np.clip(luma(out), 0, 1)
         amp = p["grain"] / 100 * 0.07 * (0.35 + 0.65 * 4 * Lc * (1 - Lc))
         out = out + (n * amp)[..., None]
-    return soft_clip(out)
+    out = soft_clip(out)
+    if mask is not None:
+        m = msampler.rows(mask, y0, y0 + h, x0, x0 + w)[..., None]
+        out = out * (1 - m) + g * m
+    return out
 
 
 # ============================================================ 整張
-def render(rgb_u8: np.ndarray, p, progress=None, cancel=None) -> np.ndarray:
-    """rgb_u8: H×W×3 uint8 → 調整好的 uint8。原尺寸一段一段處理。"""
+def render(rgb_u8: np.ndarray, p, progress=None, cancel=None, mask=None) -> np.ndarray:
+    """rgb_u8: H×W×3 uint8 → 調整好的 uint8。原尺寸一段一段處理。mask 見 apply_rows。"""
     if is_identity(p):
         return rgb_u8
     H, W = rgb_u8.shape[:2]
     maps = prepare(rgb_u8, p)
     sampler = Sampler(*maps["shape"], H, W)
+    msampler = Sampler(mask.shape[0], mask.shape[1], H, W) if mask is not None else None
     grain = gsampler = None
     if p["grain"]:
         grain = _grain_field(p, W, H)
@@ -413,7 +423,7 @@ def render(rgb_u8: np.ndarray, p, progress=None, cancel=None) -> np.ndarray:
         y1 = min(H, y0 + step)
         a0, a1 = max(0, y0 - pad), min(H, y1 + pad)
         g = rgb_u8[a0:a1].astype(np.float32) / 255
-        res = apply_rows(g, p, maps, sampler, a0, W, H, grain, gsampler)
+        res = apply_rows(g, p, maps, sampler, a0, W, H, grain, gsampler, mask=mask, msampler=msampler)
         out[y0:y1] = np.clip(res[y0 - a0:y0 - a0 + (y1 - y0)] * 255 + 0.5, 0, 255).astype(np.uint8)
         done[0] += y1 - y0
         if progress:
@@ -426,7 +436,7 @@ def render(rgb_u8: np.ndarray, p, progress=None, cancel=None) -> np.ndarray:
     return out
 
 
-def render_region(region_u8: np.ndarray, p, maps, W, H, x0, y0) -> np.ndarray:
+def render_region(region_u8: np.ndarray, p, maps, W, H, x0, y0, mask=None) -> np.ndarray:
     """只算整張照片裡的一塊（放大檢視用）。
 
     region_u8 是那一塊（已經縮放成要顯示的大小），W×H 是整張照片在同一個縮放比例下的大小，
@@ -440,7 +450,9 @@ def render_region(region_u8: np.ndarray, p, maps, W, H, x0, y0) -> np.ndarray:
     if p["grain"]:
         grain = _grain_field(p, W, H)
         gsampler = Sampler(grain.shape[0], grain.shape[1], H, W)
-    res = apply_rows(region_u8.astype(np.float32) / 255, p, maps, sampler, y0, W, H, grain, gsampler, x0=x0)
+    msampler = Sampler(mask.shape[0], mask.shape[1], H, W) if mask is not None else None
+    res = apply_rows(region_u8.astype(np.float32) / 255, p, maps, sampler, y0, W, H, grain, gsampler, x0=x0,
+                     mask=mask, msampler=msampler)
     return np.clip(res * 255 + 0.5, 0, 255).astype(np.uint8)
 
 

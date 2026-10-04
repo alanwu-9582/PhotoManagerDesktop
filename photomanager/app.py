@@ -241,6 +241,14 @@ class MainWindow(QMainWindow):
         library.drop_missing_categories()
         library.stats_changed.emit()
 
+    def models_changed(self):
+        """設定頁下載或刪除了 AI 模型：通知用到模型的頁面更新狀態。"""
+        for page in self.pages.values():
+            targets = list(page.pages.values()) if hasattr(page, "pages") else [page]
+            for t in targets:
+                if hasattr(t, "on_models_changed"):
+                    t.on_models_changed()
+
     def closeEvent(self, e):
         config.settings.set("geometry", bytes(self.saveGeometry().toBase64()).decode())
         library.shutdown()

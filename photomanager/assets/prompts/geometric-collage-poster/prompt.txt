@@ -1,4 +1,20 @@
-Create a poster. Each uploaded photo should be treated as a separate standalone artwork; do not combine multiple photos into a collage.
+Create a geometric deconstruction artwork based on the uploaded image.
+
+IMPORTANT — ORIGINAL ASPECT RATIO
+
+The final output must preserve the exact aspect ratio and orientation of the original uploaded image.
+
+Do not convert the image into a predetermined poster ratio such as 1:1, 4:5, 3:4, 2:3, or 9:16 unless that is already the aspect ratio of the source image.
+
+If the original image is landscape, keep it landscape.
+If the original image is portrait, keep it portrait.
+If the original image is square, keep it square.
+
+Do not crop the source image merely to fit a different canvas ratio.
+
+Adapt the entire composition, negative space, typography, geometric elements, and subject placement naturally to the original image dimensions.
+
+Each uploaded photo should be treated as a separate standalone artwork; do not combine multiple photos into a collage.
 
 MODULAR GEOMETRIC DECONSTRUCTION
 
@@ -6,7 +22,7 @@ Extract the most recognizable elements of the original image, including the prim
 
 Do not completely reproduce the photograph and do not create a realistic painted version of it. Remove irrelevant details and retain only the strongest visual memory points that communicate the subject’s identity, character, atmosphere, and relationship to the scene.
 
-Rebuild the image through geometric simplification, overlapping shapes, layered forms, collage construction, and modular recomposition, so that the viewer can immediately recognize its relationship to the photograph above.
+Rebuild the image through geometric simplification, overlapping shapes, layered forms, collage construction, and modular recomposition, so that the viewer can immediately recognize its relationship to the original photograph.
 
 Emphasize block-like forms, modular structures, geometric segmentation, and large, complete areas of shape.
 
@@ -31,13 +47,23 @@ Remove complex background details. Retain only a small number of essential shape
 
 COMPOSITION
 
-Maintain a relatively small-scale primary subject surrounded by generous negative space.
+Preserve the original image's exact canvas proportions and orientation throughout the transformation.
 
-Arrange the composition freely according to the subject’s direction, proportions, visual weight, center of gravity, movement, and structural flow.
+Use the source photograph as the compositional framework. Maintain the important spatial relationships, subject direction, relative scale, visual balance, and placement logic of the original image while simplifying the forms.
 
-The subject may be asymmetrically positioned, placed near an edge, partially cropped, or deliberately offset from the center.
+Do not artificially expand, compress, crop, or reframe the composition to fit a standard poster format.
+
+Maintain a relatively small-scale primary subject surrounded by generous negative space when appropriate to the original photograph.
+
+Arrange the composition according to the subject’s direction, proportions, visual weight, center of gravity, movement, structural flow, and the original image geometry.
+
+The subject may be asymmetrically positioned, placed near an edge, partially cropped, or deliberately offset from the center when this reflects the source image or improves the composition.
 
 Maintain a clear visual hierarchy, controlled density, and balanced spacing. Pay close attention to positive and negative shapes, the visual weight of large color fields, and the breathing space created by empty areas.
+
+Any newly introduced negative space must feel naturally integrated into the original aspect ratio rather than appearing as padding or artificial borders.
+
+Do not add letterboxing, pillarboxing, decorative frames, or blank margins solely to preserve proportions.
 
 TEXTURE
 
@@ -51,7 +77,7 @@ Avoid smooth digital vector surfaces, glossy rendering, 3D rendering, photograph
 
 COLOR PALETTE
 
-Extract 2–4 of the most distinctive and atmospheric colors from the photograph in the upper half.
+Extract 2–4 of the most distinctive and atmospheric colors from the original photograph.
 
 Refine these colors into a more sophisticated, coherent palette. They may be slightly brightened, purified, or desaturated as needed to create an elegant contemporary system.
 
@@ -70,24 +96,34 @@ Introduce only a minimal amount of typography. Any language may be used.
 
 Based on the subject’s identity, location, atmosphere, emotion, symbolism, or narrative, derive a short title, small annotation, number, caption, or brief descriptive text.
 
-Typography must remain small, light, subtle, and restrained. Position it within negative space or near the edges and corners of the composition.
+Typography must remain small, light, subtle, and restrained. Position it within existing negative space or near the edges and corners of the composition without disturbing the original aspect ratio or visual balance.
 
 The text should form a sophisticated editorial relationship with the geometric artwork rather than functioning as a dominant commercial headline.
 
+Typography should adapt to the available space in the original image rather than forcing the artwork into a poster-style layout.
+
 OVERALL AESTHETIC
 
-The final poster should establish a unified visual language through:
+The final artwork should establish a unified visual language through:
 
 large-scale geometric deconstruction,
 restrained collage construction,
 soft yet sophisticated color palettes,
 subtle paper grain,
 generous negative space,
-and refined editorial typography.
+refined editorial typography,
+and strict preservation of the original image's aspect ratio and orientation.
 
 Whether the source image contains people, architecture, animals, plants, objects, or landscapes, always preserve a clearly recognizable identity while translating the subject into a coherent modular geometric system.
 
+The final result should feel like a reinterpretation of the original photograph within the same visual frame, not a cropped photograph inserted into a new poster template.
+
 AVOID:
+changing the original aspect ratio,
+forcing the artwork into a standard poster ratio,
+unnecessary cropping,
+letterboxing or pillarboxing,
+artificial blank borders,
 photorealistic illustration,
 literal tracing,
 excessive fragmentation,
