@@ -1,38 +1,125 @@
 Create an art poster based on [input photo], combining photography × watercolor square collage aesthetics. The overall feeling should be fresh, bright, and airy, with a delicate handmade paper texture throughout.
+
+[Original aspect ratio and composition]
+Strictly preserve the original photo’s aspect ratio, framing, and overall composition.
+The final artwork must use the same width-to-height ratio as the input photo.
+Do not crop the original composition to fit a different poster format.
+Do not stretch, squeeze, rotate, or substantially reposition the main visual elements.
+Preserve the original spatial relationships, perspective, subject scale, and directional flow of the photograph.
+
+If additional blank paper space is introduced for artistic breathing room or text, it should be added in a way that does not alter the original image proportions or distort the original composition.
+The reconstructed image area should still retain the same aspect ratio and framing logic as the source photo.
+
 [Layout]
 Use a warm white watercolor paper background, with a subtle, clean paper grain.
-Place the collage subject in the center or slightly to the right, occupying about 70%–80% of the total width, while leaving generous blank space around it. A short sentence may be placed on the left side.
+
+Preserve the original photograph’s horizontal or vertical orientation exactly.
+The collage reconstruction should follow the original image boundaries and composition rather than being reformatted into a new poster crop.
+
+Keep the reconstructed subject large enough to remain visually dominant, while allowing tasteful blank watercolor-paper space around selected outer edges where appropriate.
+Any added negative space should feel like an extension of the original composition rather than a redesign of it.
+
+A short sentence may be placed in an available blank area, but the text must not force the image to be cropped, compressed, stretched, or repositioned away from the source composition.
+
 [Square-grid reconstruction]
 Redraw the main content of the photo as an image composed of hundreds of small square color pieces.
-The squares should be arranged along a consistent horizontal and vertical grid. The main subject should span დაახლოებით 30–45 squares across horizontally. The square pieces should be mostly uniform in size, though slight local variations in size and position are allowed.
-Leave thin, slightly irregular white paper gaps visible between the squares. The square edges should be slightly soft and irregular rather than perfectly sharp.
-Each square should inherit the color and light-dark value of the corresponding area in the original image, so that many squares together form a recognizable subject. Preserve the person’s pose, main clothing colors, object proportions, key contours, and spatial direction. Simplify details appropriately, but do not simply overlay a grid directly on top of the original photo.
-For people and isolated objects, prioritize extracting the main subject and retain only a small amount of surrounding environmental color.
-For landscapes, preserve the major relationships of sky, horizon, water surface, and terrain.
+
+The squares should be arranged along a consistent horizontal and vertical grid that follows the full composition of the original photograph.
+The main image should span approximately 30–45 squares across horizontally, adjusted proportionally according to the original photo’s aspect ratio.
+
+The square pieces should be mostly uniform in size, though slight local variations in size and position are allowed.
+
+Leave thin, slightly irregular white paper gaps visible between the squares.
+The square edges should be slightly soft and irregular rather than perfectly sharp.
+
+Each square should inherit the color and light-dark value of the corresponding area in the original image, so that many squares together reconstruct the original photograph in recognizable form.
+
+Preserve:
+- the original subject proportions
+- the original perspective
+- the original camera framing
+- the original object placement
+- the original spatial relationships
+- the original pose and body proportions of people, if present
+- the original clothing colors
+- the original architectural or landscape geometry
+- the original direction of lines, movement, and depth
+
+Simplify fine details appropriately, but do not simply overlay a grid directly on top of the original photo.
+
+For people and isolated objects, prioritize preserving the original subject silhouette, pose, proportion, and placement within the frame, while retaining only a small amount of surrounding environmental color when appropriate.
+
+For landscapes and architecture, preserve the original relationships of sky, horizon, buildings, roofs, water, terrain, foreground, and background exactly as they appear in the source image.
+
 [Watercolor paper piece texture]
-Each square should look like an individually dyed, lightly wrinkled piece of thin watercolor paper. Within each square, show transparent watercolor variation, pigment deposits, subtle bleeding, paper fibers, and slight creases.
-Within the same color area, allow natural color variation. Highlights should let the paper white show through, while darker areas should retain visible pigment granulation.
-The paper pieces should lie almost flat against the background paper, with only very slight edge shadows. They should not look like thick tiles, glass, or plastic.
-The overall color should be vivid and luminous, preserving the key hues of the original image, without applying a uniform yellow cast.
+Each square should look like an individually dyed, lightly wrinkled piece of thin watercolor paper.
+
+Within each square, show:
+- transparent watercolor variation
+- pigment deposits
+- subtle bleeding
+- visible paper fibers
+- slight creases
+- gentle pigment granulation
+
+Within the same color area, allow natural color variation.
+
+Highlights should let the paper white show through, while darker areas should retain visible pigment granulation.
+
+The paper pieces should lie almost flat against the background paper, with only very slight edge shadows.
+
+They should not look like thick tiles, glass, ceramic, plastic, or raised mosaic blocks.
+
+The overall color should be vivid and luminous, preserving the key hues and tonal balance of the original image without applying a uniform yellow cast.
+
 [Edge dissolution]
-In the core subject area, the squares should be dense and continuous.
-As the image approaches the outer contours, gradually introduce missing squares and gaps, with a small number of individual squares scattering outward.
-These scattered squares should continue the nearby subject colors and roughly follow the original grid positions. The density of this dissolution should vary naturally — it must not be evenly sprinkled across the whole background, and it must not form a complete rectangular border.
-Important identifying features of the subject must remain coherent and continuous.
+In the central and visually important areas of the original image, the squares should remain dense and continuous.
+
+As the reconstructed image approaches selected outer contours or less important peripheral areas, gradually introduce missing squares and gaps, with a small number of individual squares scattering outward.
+
+The dissolution should follow the original image edges and composition rather than creating a new rectangular crop.
+
+These scattered squares should continue the nearby subject colors and roughly follow the original grid positions.
+
+The density of this dissolution should vary naturally.
+It must not be evenly sprinkled across the whole background and must not form a complete rectangular border.
+
+Important identifying features, structural lines, faces, architectural details, silhouettes, and key contours must remain coherent and continuous.
+
 [Text]
 Copy: [specified short sentence / automatically generated short English phrase / none].
-Use a gray-blue thin-line handwritten script, arranged in 2–4 lines within the side blank space. You may also add one very small line of loosely tracked serif English text and a short thin horizontal line.
-Any key text that exists on the original object should be faithfully preserved, and may continue seamlessly across multiple squares. Do not invent characters.
+
+Use a gray-blue thin-line handwritten script, arranged in 2–4 lines within an area of natural negative space.
+
+The text placement must adapt to the original composition and must not require cropping, shrinking, stretching, or rearranging the reconstructed image.
+
+You may also add:
+- one very small line of loosely tracked serif English text
+- one short thin horizontal line
+
+Any key text that exists on the original object should be faithfully preserved and may continue seamlessly across multiple squares.
+
+Do not invent characters, signs, labels, or lettering that are not present in the original photograph.
+
 There should be no large headline and no watermark.
-Avoid
+
+[Avoid]
 Avoid:
-digital censorship mosaic,
-8-bit game pixel art,
-hard flat color squares,
-tile grout effects,
-glass reflections,
-heavy embossing,
-full-image grid filter effects,
-excessive debris,
-an unrecognizable subject,
-and dense text.
+- changing the original aspect ratio
+- cropping the image into a different format
+- converting landscape photos into portrait posters
+- converting portrait photos into landscape posters
+- stretching or compressing the original image
+- changing the original camera perspective
+- significantly moving major objects
+- redesigning the source composition
+- digital censorship mosaic
+- 8-bit game pixel art
+- hard flat color squares
+- tile grout effects
+- glass reflections
+- heavy embossing
+- full-image grid filter effects
+- excessive debris
+- an unrecognizable subject
+- dense text

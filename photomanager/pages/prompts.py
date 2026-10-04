@@ -241,9 +241,10 @@ class PromptCard(QAbstractButton):
 
 
 class ExampleView(QWidget):
-    """一組範例：原圖 → 成果圖。點圖片用系統的看圖程式打開；上傳的可以刪。"""
+    """一組範例：原圖 → 成果圖。點圖片在程式裡放大預覽；上傳的可以刪。"""
     TW, TH = 128, 96
     removed = Signal(object)
+    opened = Signal(object, str)          # 範例, "before" / "after"
 
     def __init__(self, ex: P.Example, parent=None):
         super().__init__(parent)
@@ -292,7 +293,7 @@ class ExampleView(QWidget):
     def mouseReleaseEvent(self, e):
         for k, r in self._rects().items():
             if r.contains(QPointF(e.position())) and getattr(self.ex, k):
-                P.open_folder(getattr(self.ex, k))
+                self.opened.emit(self.ex, k)
                 return
 
 
@@ -410,6 +411,7 @@ class PromptsPage(Page):
         for ex in pr.examples[:8]:
             v = ExampleView(ex)
             v.removed.connect(self.remove_example)
+            v.opened.connect(self.preview)
             self.thumbs.addWidget(v)
         text = pr.text()
         self.text.setPlainText(text)
@@ -465,6 +467,13 @@ class PromptsPage(Page):
         QApplication.restoreOverrideCursor()
         self.reload()
         notify("已新增範例", "success")
+
+    def preview(self, ex, kind):
+        """程式內預覽：可以在這個提示詞的各組範例之間切換。"""
+        from ..ui.image_preview import ImagePreview
+        exs = self.current.examples
+        pairs = [(e.before, e.after) for e in exs]
+        ImagePreview(self.win, self.current.title, pairs, exs.index(ex) if ex in exs else 0, kind).exec()
 
     def remove_example(self, ex):
         if not dialogs.confirm(self.win, "刪除這組範例？", "原圖與成果圖都會刪除。", tone="danger", confirm_text="刪除"):

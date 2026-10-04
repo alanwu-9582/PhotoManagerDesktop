@@ -7,14 +7,18 @@
 from __future__ import annotations
 
 
+import threading
+
 import numpy as np
-from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
+from PySide6.QtCore import QObject, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QComboBox
 
-from ...ui.widgets import (Flag, ColorButton, Segmented, SliderField, button, field, hbox, icon_button, label, row,
-                           section, wrap)
+from ...ui.widgets import (Flag, ColorButton, Segmented, SliderField, button, field, hbox, icon_button, label, notify,
+                           row, section, wrap)
 from ..common import Stage, ToolPage, safe_name
+from ..depth_blur.page import qimage_to_rgb
+from .autocrop import compose, detect_tilt
 from .guides import DIRECTIONAL, GUIDES, guide_paths
 from .transform import ASPECTS, crop_image, fit_crop, largest_inner_rect, render_work, rotated_size
 
@@ -25,6 +29,11 @@ HANDLE = 9
 
 def clamp(v, lo, hi):
     return min(hi, max(lo, v))
+
+
+class _Relay(QObject):
+    tilt = Signal(object, object, object)     # token, 拉直角度 | None, 要不要接著裁切 / 錯誤
+    crop = Signal(object, object, object)     # token, 裁切框 | None, 角度 / 錯誤
 
 
 class CropStage(Stage):
@@ -246,6 +255,9 @@ class PhotoEditPage(ToolPage):
         self._rebuild.setSingleShot(True)
         self._rebuild.setInterval(16)
         self._rebuild.timeout.connect(self._do_rebuild)
+        self._relay = _Relay()
+        self._relay.tilt.connect(self._on_tilt)
+        self._relay.crop.connect(self._on_crop)
         self._build_controls()
 
     def make_stage(self):
@@ -260,7 +272,9 @@ class PhotoEditPage(ToolPage):
         F.addWidget(self.rotate)
         turns = hbox(icon_button("rotate-left", "向左 90°", lambda: self.turn(-90)),
                      icon_button("rotate-right", "向右 90°", lambda: self.turn(90)),
-                     button("重設", None, None, "角度歸零", self.reset_angle), None, spacing=4)
+                     button("重設", None, None, "角度歸零", self.reset_angle),
+                     button("自動拉直", None, None, "依畫面裡的水平、垂直線把照片轉正", lambda: self.auto(False)),
+                     None, spacing=4)
         self.flip_h = Flag("水平翻轉", icon_name="flip-h")
         self.flip_v = Flag("垂直翻轉", icon_name="flip-v")
         self.flip_h.toggled.connect(lambda on: self._set("flipH", on))
@@ -280,7 +294,9 @@ class PhotoEditPage(ToolPage):
         self.auto_inner.toggled.connect(self._set_auto_inner)
         self.bg = ColorButton("#000000")
         self.bg.changed.connect(lambda v: self._set("bg", v))
-        crop_btns = hbox(button("填滿", None, None, "裁切框撐滿整張（含留白）", self.fill_crop),
+        self.auto_btn = button("自動裁切", "primary", "crop", "轉正、去掉留白，再依主體的位置照目前的比例挑構圖",
+                               lambda: self.auto(True))
+        crop_btns = hbox(self.auto_btn, button("填滿", None, None, "裁切框撐滿整張（含留白）", self.fill_crop),
                          button("貼齊照片", None, None, "把裁切框收進不含留白的範圍", self.snap_inside), None, spacing=6)
         F.addWidget(field("裁切框", wrap(crop_btns)))
         F.addWidget(row(field("留白", self.auto_inner), field("底色", self.bg)))
@@ -426,6 +442,71 @@ class PhotoEditPage(ToolPage):
         self.o["rotate"] = self.o["turn"] + self.o["fine"]
         self._do_rebuild()
         self.reset_crop()
+
+    # ---------------------------------------------------------------- 自動拉直 / 自動裁切
+    def auto(self, crop):
+        """在背景找傾斜角度（與主體），算好回到 _on_auto。"""
+        if self.small is None:
+            return
+        token = self._auto_token = object()
+        turned = dict(self.o, rotate=self.o["turn"], fine=0.0)
+        base = qimage_to_rgb(render_work(self.small, turned, max(self.small.width(), self.small.height())))
+        self.set_status("分析中…")
+
+        def run():
+            try:
+                tilt = detect_tilt(base)
+                self._relay.tilt.emit(token, -tilt, crop)
+            except Exception as e:  # noqa: BLE001
+                self._relay.tilt.emit(token, None, str(e))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_tilt(self, token, fine, crop):
+        if token is not getattr(self, "_auto_token", None):
+            return
+        if fine is None:
+            self.set_status(f"自動分析失敗: {crop}", "error")
+            return
+        fine = max(-45.0, min(45.0, fine))
+        self.o["fine"] = fine
+        self.o["rotate"] = self.o["turn"] + fine
+        self.rotate.set(fine)
+        self._do_rebuild()
+        if not crop:
+            self.reset_crop()
+            notify(f"已拉直 {fine:+.1f}°" if abs(fine) >= 0.05 else "照片已經是正的", "success")
+            self.set_status(f"{self.full.width()}×{self.full.height()}")
+            return
+        # 主體辨識在轉正後的工作畫布上做，再挑構圖
+        work = qimage_to_rgb(self.work)
+        inner = self.inner_box()
+        aspect = self.aspect_value()
+        if not aspect:
+            w, h = self.full.width(), self.full.height()
+            aspect = (h / w) if self.o["turn"] % 180 else (w / h)
+
+        def run():
+            try:
+                from ..adjust import subject as SB
+                m, _ = SB.detect(work)
+                self._relay.crop.emit(token, compose(m, inner, aspect, work.shape[1], work.shape[0]), fine)
+            except Exception as e:  # noqa: BLE001
+                self._relay.crop.emit(token, None, str(e))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_crop(self, token, crop, fine):
+        if token is not getattr(self, "_auto_token", None):
+            return
+        if crop is None:
+            self.set_status(f"自動分析失敗: {fine}", "error")
+            return
+        self.crop = crop
+        self.paint_size()
+        self.stage.update()
+        self.set_status(f"{self.full.width()}×{self.full.height()}")
+        notify(f"已自動裁切（拉直 {fine:+.1f}°）" if abs(fine) >= 0.05 else "已自動裁切", "success")
 
     def reset_angle(self):
         self.o.update(turn=0, fine=0.0, rotate=0.0)

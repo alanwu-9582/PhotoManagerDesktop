@@ -1,7 +1,8 @@
 """調整（參考 Lightroom 的「基本」「色彩混合」「顏色分級」「效果」，再加上聚光燈）。
 
 右邊六個分頁：基本、風格、色彩、效果、聚光燈、遮罩。「遮罩」辨識主體（subject.py），
-可以遮罩主體或遮罩非主體：被遮住的地方維持原樣，所有調整只套在沒有遮住的地方。「風格」是 iPhone 相機那種攝影風格（styles.py）。拖滑桿時先用小圖快速算一張草稿，
+可以遮罩主體或遮罩非主體：被遮住的地方維持原樣，所有調整只套在沒有遮住的地方。
+自動辨識之外可以用筆刷「加入 / 移除主體」：筆刷會依顏色判斷刷到的地方是不是同一個東西，再貼齊邊緣（半自動）。「風格」是 iPhone 相機那種攝影風格（styles.py）。拖滑桿時先用小圖快速算一張草稿，
 停下來再用預覽大小算一次；儲存或暫存時才用原尺寸（develop.render 會一段一段算）。
 按住空白鍵看原圖，左下角的「照片參數」有直方圖、波形、向量示波器與曝光數字。
 聚光燈：切到「聚光燈」分頁後在照片上拖曳畫一個區域，裡面提亮、外面壓暗；
@@ -51,6 +52,7 @@ class _Relay(QObject):
     detail = Signal(object, object, object, object, object)   # token, gen, 成品, 原圖, 區域
     thumb = Signal(object, str, object)       # token, 風格名稱, rgb array
     subject = Signal(object, object, str)     # token, 主體遮罩 | None, 方法 / 錯誤
+    stroke = Signal(object, object)           # token, (y0, x0, 選取程度, 加入 / 移除)
     download = Signal(int, int)
     download_done = Signal(object)
 
@@ -71,10 +73,44 @@ class AdjustStage(Stage):
         ov = self.tool.mask_overlay()
         if ov is not None and not self.comparing:
             p.drawImage(self.image_rect(), ov)       # 被遮住（不會調整）的地方蓋一層紅
+        if self.tool.brushing() and not self.comparing:
+            self._paint_brush(p)
         if self.editing_spots() and not self.comparing:
             self._paint_spots(p, self.image_rect())
 
+    # ---------------------------------------------------------------- 遮罩筆刷
+    def _paint_brush(self, p):
+        rad = self.tool.brush_screen_radius()
+        col = QColor(255, 80, 80) if self.tool.brush_mode.value() == "add" else QColor(80, 220, 140)
+        stroke = getattr(self, "_stroke", None)
+        if stroke:
+            trail = QColor(col)
+            trail.setAlphaF(0.35)
+            pen = QPen(trail, rad * 2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+            p.setPen(pen)
+            path = QPainterPath(stroke[0])
+            for pt in stroke[1:]:
+                path.lineTo(pt)
+            if len(stroke) == 1:
+                path.lineTo(stroke[0] + QPointF(0.01, 0))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawPath(path)
+        hover = getattr(self, "_hover", None)
+        if hover is not None:
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.setPen(QPen(QColor(0, 0, 0, 140), 3))
+            p.drawEllipse(hover, rad, rad)
+            p.setPen(QPen(QColor(255, 255, 255, 230), 1.3))
+            p.drawEllipse(hover, rad, rad)
+
+    def leaveEvent(self, e):
+        self._hover = None
+        self.update()
+        super().leaveEvent(e)
+
     def mouseDoubleClickEvent(self, e):
+        if self.tool.brushing():
+            return          # 刷遮罩時雙擊不切換縮放
         if self.editing_spots():
             return          # 編輯聚光燈時雙擊不切換縮放（第一下已經在畫聚光燈了）
         super().mouseDoubleClickEvent(e)
@@ -182,7 +218,11 @@ class AdjustStage(Stage):
     def mousePressEvent(self, e):
         if self.empty or not self.pix:
             return
-        # 中鍵隨時可以拖曳檢視；左鍵在沒有編輯聚光燈的時候拖曳檢視
+        if e.button() == Qt.MouseButton.LeftButton and self.tool.brushing() and not self.comparing:
+            self._stroke = [e.position()]
+            self.update()
+            return
+        # 中鍵隨時可以拖曳檢視；左鍵在沒有編輯聚光燈、沒有在刷遮罩的時候拖曳檢視
         if self.zoomed() and (e.button() == Qt.MouseButton.MiddleButton or
                               (e.button() == Qt.MouseButton.LeftButton and not self.editing_spots())):
             self.start_pan(e.position())
@@ -207,6 +247,14 @@ class AdjustStage(Stage):
         if self._pan is not None:
             self.move_pan(pos)
             return
+        if self.tool.brushing():
+            self._hover = pos
+            if getattr(self, "_stroke", None):
+                self._stroke.append(pos)
+            self.setCursor(Qt.CursorShape.BlankCursor)
+            self.update()
+            return
+        self._hover = None
         if not self._drag:
             if self.empty:
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -263,6 +311,14 @@ class AdjustStage(Stage):
     def mouseReleaseEvent(self, e):
         if self._pan is not None:
             self.end_pan()
+            return
+        stroke = getattr(self, "_stroke", None)
+        if stroke:
+            self._stroke = None
+            r = self.image_rect()
+            pts = [((q.x() - r.x()) / r.width(), (q.y() - r.y()) / r.height()) for q in stroke]
+            self.tool.apply_stroke(pts)
+            self.update()
             return
         if self._drag:
             d = self._drag
@@ -544,6 +600,28 @@ class AdjustPage(ToolPage):
         self.show_mask.setToolTip("用紅色標出被遮住、不會調整的地方")
         self.show_mask.toggled.connect(lambda *_: self.stage.update())
         M.addWidget(self.show_mask)
+        M.addWidget(section("手動修改"))
+        self.brush_mode = Segmented([("off", "瀏覽"), ("add", "加入主體"), ("sub", "移除主體")], "off")
+        self.brush_mode.setToolTip("在照片上刷：加入或移除主體的範圍（中鍵拖曳移動檢視）")
+        self.brush_mode.changed.connect(lambda *_: self.stage.update())
+        M.addWidget(self.brush_mode)
+        self.brush_size = ParamSlider("筆刷大小", 2, 40, 10, 1, 10)
+        self.brush_size.setToolTip("筆刷半徑（照片長邊的百分比 × 4）")
+        M.addWidget(self.brush_size)
+        self.brush_auto = Flag("自動辨識邊緣")
+        self.brush_auto.setChecked(True)
+        self.brush_auto.setToolTip("依顏色判斷刷到的地方是不是同一個東西，並貼齊邊緣；關掉就照筆刷的範圍")
+        self.undo_btn = button("復原", None, "reset", "復原上一筆（Ctrl+Z）", self.undo_stroke)
+        self.clear_btn = button("清除修改", "danger-plain", None, "清掉所有手動修改，回到自動辨識的結果", self.clear_strokes)
+        M.addWidget(wrap(hbox(self.brush_auto, None, self.undo_btn, self.clear_btn, spacing=6)))
+        self.edit_add = self.edit_sub = None
+        self._edit_undo = []
+        self._feats = None
+        self._stroke_token = None
+        self._relay.stroke.connect(self._on_stroke)
+        undo = QShortcut(QKeySequence.StandardKey.Undo, self)
+        undo.activated.connect(lambda: self.tabs.value() == "mask" and self.undo_stroke())
+        self._sync_edit_buttons()
         self._relay.subject.connect(self._on_subject)
         self._relay.download.connect(self._on_sb_download)
         self._relay.download_done.connect(self._on_sb_downloaded)
@@ -605,9 +683,91 @@ class AdjustPage(ToolPage):
         self.p["mask"][key] = v
         self._update_mask(final=False)
 
+    # ---------------------------------------------------------------- 遮罩：筆刷
+    def brushing(self):
+        return self.tabs.value() == "mask" and self.brush_mode.value() != "off" and self.small is not None
+
+    def brush_radius_px(self):
+        """筆刷半徑，以預覽圖（遮罩的解析度）的像素計。"""
+        h, w = self.small.shape[:2]
+        return self.brush_size.value() / 400 * max(h, w)
+
+    def brush_screen_radius(self):
+        r = self.stage.image_rect()
+        if self.small is None or r.isEmpty():
+            return 10.0
+        return self.brush_radius_px() * r.width() / self.small.shape[1]
+
+    def _combined_subject(self):
+        """自動辨識的主體加上手動修改。"""
+        base = self.subject
+        if self.edit_add is None:
+            return base
+        if base is None:
+            base = np.zeros(self.edit_add.shape, np.float32)
+        return np.clip(np.maximum(base, self.edit_add) * (1 - self.edit_sub), 0, 1).astype(np.float32)
+
+    def apply_stroke(self, norm_pts):
+        if self.small is None or not norm_pts:
+            return
+        if self.p["mask"]["mode"] == "none":
+            self.mask_mode.setValue("subject", emit=True)       # 開始刷了，先開遮罩才看得到效果
+        h, w = self.small.shape[:2]
+        pts = [(x * w, y * h) for x, y in norm_pts]
+        if self._feats is None:
+            self._feats = SB.stroke_features(self.small)
+        token = self._stroke_token = object()
+        feats, radius, auto, mode = self._feats, self.brush_radius_px(), self.brush_auto.isChecked(), self.brush_mode.value()
+
+        def run():
+            y0, x0, patch = SB.smart_stroke(feats, pts, radius, auto)
+            self._relay.stroke.emit(token, (y0, x0, patch, mode))
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _on_stroke(self, token, res):
+        y0, x0, patch, mode = res
+        if patch.size == 0:
+            return
+        h, w = self.small.shape[:2]
+        if self.edit_add is None:
+            self.edit_add = np.zeros((h, w), np.float32)
+            self.edit_sub = np.zeros((h, w), np.float32)
+        self._edit_undo.append((self.edit_add.copy(), self.edit_sub.copy()))
+        del self._edit_undo[:-20]
+        ph, pw = patch.shape
+        sl = (slice(y0, y0 + ph), slice(x0, x0 + pw))
+        if mode == "add":
+            self.edit_add[sl] = np.maximum(self.edit_add[sl], patch)
+            self.edit_sub[sl] *= 1 - patch
+        else:
+            self.edit_sub[sl] = np.maximum(self.edit_sub[sl], patch)
+            self.edit_add[sl] *= 1 - patch
+        self._sync_edit_buttons()
+        self._update_mask()
+
+    def undo_stroke(self):
+        if not self._edit_undo:
+            return
+        self.edit_add, self.edit_sub = self._edit_undo.pop()
+        self._sync_edit_buttons()
+        self._update_mask()
+
+    def clear_strokes(self):
+        if self.edit_add is None:
+            return
+        self._edit_undo.append((self.edit_add.copy(), self.edit_sub.copy()))
+        self.edit_add = self.edit_sub = None
+        self._sync_edit_buttons()
+        self._update_mask()
+
+    def _sync_edit_buttons(self):
+        self.undo_btn.setEnabled(bool(self._edit_undo))
+        self.clear_btn.setEnabled(self.edit_add is not None)
+
     def _update_mask(self, final=True):
         mk = self.p["mask"]
-        self.mask_eff = SB.effective(self.subject, mk["mode"], mk["feather"], mk["shift"])
+        self.mask_eff = SB.effective(self._combined_subject(), mk["mode"], mk["feather"], mk["shift"])
         self._overlay = None
         if self.mask_eff is not None:
             rgba = SB.overlay_rgba(self.mask_eff)
@@ -797,6 +957,10 @@ class AdjustPage(ToolPage):
         self.sel = -1
         self.subject = self.mask_eff = self._overlay = None
         self._subject_token = None
+        self.edit_add = self.edit_sub = self._feats = None
+        self._edit_undo = []
+        self._sync_edit_buttons()
+        self.brush_mode.setValue("off")
         self._sync_all()
         self._paint_subject_method()
         if self.tabs.value() == "mask":

@@ -188,3 +188,84 @@ def overlay_rgba(mask: np.ndarray) -> np.ndarray:
     out[..., 3] = a
     return out
 
+
+
+# ============================================================ 手動修改：半自動筆刷
+def stroke_features(rgb: np.ndarray):
+    """筆刷判斷要用的特徵（每張照片算一次）：對立色空間的顏色（稍微模糊）與灰階。"""
+    f = rgb.astype(np.float32) / 255
+    opp = np.stack([f @ np.array([0.299, 0.587, 0.114], np.float32),
+                    (f[..., 0] - f[..., 1]) * 1.6,
+                    (0.5 * (f[..., 0] + f[..., 1]) - f[..., 2]) * 1.6], -1)
+    opp = np.stack([DD.gauss(opp[..., c], 1.0) for c in range(3)], -1).astype(np.float32)
+    return opp, opp[..., 0].copy()
+
+
+def smart_stroke(feats, points, radius: float, auto=True):
+    """一筆筆刷 → (y0, x0, 這一塊的選取程度 0..1)。
+
+    points 是筆刷經過的像素座標、radius 是半徑（像素）。auto 時以筆刷中心經過的顏色當樣本，
+    筆刷範圍內（以及外面一點點）顏色像的才算選到，再用照片的邊緣貼齊；
+    所以沿著主體邊緣隨手刷，也不會把背景一起刷進去。
+    """
+    opp, gray = feats
+    H, W = gray.shape
+    pts = np.asarray(points, np.float32).reshape(-1, 2)
+    # 點補密一點（間距 r/3），距離才算得準
+    dense = [pts[0]]
+    for a, b in zip(pts[:-1], pts[1:]):
+        n = int(np.ceil(np.hypot(*(b - a)) / max(1.0, radius / 3)))
+        dense += [a + (b - a) * t for t in np.linspace(0, 1, n + 1)[1:]]
+    pts = np.asarray(dense, np.float32)
+    reach = radius * (1.6 if auto else 1.05)
+    x0 = int(max(0, np.floor(pts[:, 0].min() - reach)))
+    x1 = int(min(W, np.ceil(pts[:, 0].max() + reach) + 1))
+    y0 = int(max(0, np.floor(pts[:, 1].min() - reach)))
+    y1 = int(min(H, np.ceil(pts[:, 1].max() + reach) + 1))
+    if x1 <= x0 or y1 <= y0:
+        return 0, 0, np.zeros((0, 0), np.float32)
+    yy, xx = np.mgrid[y0:y1, x0:x1].astype(np.float32)
+    D = np.full(yy.shape, np.inf, np.float32)
+    for px, py in pts:
+        np.minimum(D, np.hypot(xx - px, yy - py), out=D)
+    brush = np.clip((radius - D) / max(1.0, radius * 0.15), 0, 1)          # 一般筆刷：邊緣稍微柔一點
+    if not auto:
+        return y0, x0, brush.astype(np.float32)
+    f = opp[y0:y1, x0:x1]
+    # 前景樣本：刷子正中間的主要顏色（把少數的雜色去掉——刷到邊上時中心也可能沾到一點背景）
+    center = f[D <= max(1.5, radius * 0.25)]
+    if len(center) == 0:
+        return y0, x0, brush.astype(np.float32)
+    med = np.median(center, axis=0)
+    dc = np.sqrt(((center - med) ** 2).sum(1))
+    spread = float(np.median(dc)) + 1e-3
+    fg = center[dc <= max(2.5 * spread, 0.05)]
+    # 背景樣本：刷子外圈、顏色明顯跟前景不一樣的地方
+    ring = (D >= radius * 0.6) & (D <= reach)
+    cand = f[ring]
+    dr = np.sqrt(((cand - med) ** 2).sum(1))
+    bg = cand[dr > max(3.0 * spread, 0.08)]
+    if len(bg) < 8:
+        # 附近都差不多是同一個顏色：就照刷子的範圍
+        return y0, x0, brush.astype(np.float32)
+
+    def nearest(samples):
+        if len(samples) > 96:
+            samples = samples[np.linspace(0, len(samples) - 1, 96).astype(int)]
+        flat = f.reshape(-1, 3)
+        out = np.full(flat.shape[0], np.inf, np.float32)
+        for i in range(0, len(samples), 32):
+            chunk = samples[i:i + 32]
+            d = np.sqrt(((flat[:, None, :] - chunk[None, :, :]) ** 2).sum(axis=2)).min(axis=1)
+            np.minimum(out, d, out=out)
+        return out.reshape(D.shape)
+
+    d_fg, d_bg = nearest(fg), nearest(bg)
+    p_fg = d_bg / (d_fg + d_bg + 1e-6)                    # 越接近前景樣本越接近 1
+    sel = np.clip((p_fg - 0.42) / 0.16, 0, 1)
+    reach_w = np.clip((reach - D) / max(1.0, reach - radius), 0, 1)          # 刷子外面一點點也可以延伸過去
+    soft = sel * reach_w
+    soft = np.maximum(soft, (D <= radius * 0.15).astype(np.float32))         # 刷子正中間一定選到
+    g = gray[y0:y1, x0:x1]
+    soft = np.clip(DD.guided(g, soft.astype(np.float32), max(2, round(radius / 8)), 1e-4), 0, 1)
+    return y0, x0, soft.astype(np.float32)
